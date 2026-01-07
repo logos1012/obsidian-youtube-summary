@@ -16,7 +16,8 @@ export class AIProcessor {
 				throw new APIKeyMissingError();
 			}
 			this.client = new Anthropic({
-				apiKey: this.apiKey
+				apiKey: this.apiKey,
+				dangerouslyAllowBrowser: true
 			});
 		}
 		return this.client;

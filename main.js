@@ -3024,7 +3024,8 @@ var AIProcessor = class {
         throw new APIKeyMissingError();
       }
       this.client = new sdk_default({
-        apiKey: this.apiKey
+        apiKey: this.apiKey,
+        dangerouslyAllowBrowser: true
       });
     }
     return this.client;
