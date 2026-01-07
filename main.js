@@ -27,7 +27,7 @@ __export(main_exports, {
   default: () => YouTubeSummaryPlugin
 });
 module.exports = __toCommonJS(main_exports);
-var import_obsidian2 = require("obsidian");
+var import_obsidian3 = require("obsidian");
 
 // src/types/index.ts
 var DEFAULT_SETTINGS = {
@@ -168,163 +168,84 @@ var VideoIdExtractor = class {
   }
 };
 
-// node_modules/youtube-transcript/dist/youtube-transcript.esm.js
-function __awaiter(thisArg, _arguments, P, generator) {
-  function adopt(value) {
-    return value instanceof P ? value : new P(function(resolve) {
-      resolve(value);
-    });
-  }
-  return new (P || (P = Promise))(function(resolve, reject) {
-    function fulfilled(value) {
-      try {
-        step(generator.next(value));
-      } catch (e) {
-        reject(e);
-      }
-    }
-    function rejected(value) {
-      try {
-        step(generator["throw"](value));
-      } catch (e) {
-        reject(e);
-      }
-    }
-    function step(result) {
-      result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected);
-    }
-    step((generator = generator.apply(thisArg, _arguments || [])).next());
-  });
-}
-var RE_YOUTUBE = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/i;
-var USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/85.0.4183.83 Safari/537.36,gzip(gfe)";
-var RE_XML_TRANSCRIPT = /<text start="([^"]*)" dur="([^"]*)">([^<]*)<\/text>/g;
-var YoutubeTranscriptError = class extends Error {
-  constructor(message) {
-    super(`[YoutubeTranscript] \u{1F6A8} ${message}`);
-  }
-};
-var YoutubeTranscriptTooManyRequestError = class extends YoutubeTranscriptError {
-  constructor() {
-    super("YouTube is receiving too many requests from this IP and now requires solving a captcha to continue");
-  }
-};
-var YoutubeTranscriptVideoUnavailableError = class extends YoutubeTranscriptError {
-  constructor(videoId) {
-    super(`The video is no longer available (${videoId})`);
-  }
-};
-var YoutubeTranscriptDisabledError = class extends YoutubeTranscriptError {
-  constructor(videoId) {
-    super(`Transcript is disabled on this video (${videoId})`);
-  }
-};
-var YoutubeTranscriptNotAvailableError = class extends YoutubeTranscriptError {
-  constructor(videoId) {
-    super(`No transcripts are available for this video (${videoId})`);
-  }
-};
-var YoutubeTranscriptNotAvailableLanguageError = class extends YoutubeTranscriptError {
-  constructor(lang, availableLangs, videoId) {
-    super(`No transcripts are available in ${lang} this video (${videoId}). Available languages: ${availableLangs.join(", ")}`);
-  }
-};
-var YoutubeTranscript = class {
-  /**
-   * Fetch transcript from YTB Video
-   * @param videoId Video url or video identifier
-   * @param config Get transcript in a specific language ISO
-   */
-  static fetchTranscript(videoId, config) {
-    var _a2;
-    return __awaiter(this, void 0, void 0, function* () {
-      const identifier = this.retrieveVideoId(videoId);
-      const videoPageResponse = yield fetch(`https://www.youtube.com/watch?v=${identifier}`, {
-        headers: Object.assign(Object.assign({}, (config === null || config === void 0 ? void 0 : config.lang) && { "Accept-Language": config.lang }), { "User-Agent": USER_AGENT })
-      });
-      const videoPageBody = yield videoPageResponse.text();
-      const splittedHTML = videoPageBody.split('"captions":');
-      if (splittedHTML.length <= 1) {
-        if (videoPageBody.includes('class="g-recaptcha"')) {
-          throw new YoutubeTranscriptTooManyRequestError();
-        }
-        if (!videoPageBody.includes('"playabilityStatus":')) {
-          throw new YoutubeTranscriptVideoUnavailableError(videoId);
-        }
-        throw new YoutubeTranscriptDisabledError(videoId);
-      }
-      const captions = (_a2 = (() => {
-        try {
-          return JSON.parse(splittedHTML[1].split(',"videoDetails')[0].replace("\n", ""));
-        } catch (e) {
-          return void 0;
-        }
-      })()) === null || _a2 === void 0 ? void 0 : _a2["playerCaptionsTracklistRenderer"];
-      if (!captions) {
-        throw new YoutubeTranscriptDisabledError(videoId);
-      }
-      if (!("captionTracks" in captions)) {
-        throw new YoutubeTranscriptNotAvailableError(videoId);
-      }
-      if ((config === null || config === void 0 ? void 0 : config.lang) && !captions.captionTracks.some((track) => track.languageCode === (config === null || config === void 0 ? void 0 : config.lang))) {
-        throw new YoutubeTranscriptNotAvailableLanguageError(config === null || config === void 0 ? void 0 : config.lang, captions.captionTracks.map((track) => track.languageCode), videoId);
-      }
-      const transcriptURL = ((config === null || config === void 0 ? void 0 : config.lang) ? captions.captionTracks.find((track) => track.languageCode === (config === null || config === void 0 ? void 0 : config.lang)) : captions.captionTracks[0]).baseUrl;
-      const transcriptResponse = yield fetch(transcriptURL, {
-        headers: Object.assign(Object.assign({}, (config === null || config === void 0 ? void 0 : config.lang) && { "Accept-Language": config.lang }), { "User-Agent": USER_AGENT })
-      });
-      if (!transcriptResponse.ok) {
-        throw new YoutubeTranscriptNotAvailableError(videoId);
-      }
-      const transcriptBody = yield transcriptResponse.text();
-      const results = [...transcriptBody.matchAll(RE_XML_TRANSCRIPT)];
-      return results.map((result) => {
-        var _a3;
-        return {
-          text: result[3],
-          duration: parseFloat(result[2]),
-          offset: parseFloat(result[1]),
-          lang: (_a3 = config === null || config === void 0 ? void 0 : config.lang) !== null && _a3 !== void 0 ? _a3 : captions.captionTracks[0].languageCode
-        };
-      });
-    });
-  }
-  /**
-   * Retrieve video id from url or string
-   * @param videoId video url or video id
-   */
-  static retrieveVideoId(videoId) {
-    if (videoId.length === 11) {
-      return videoId;
-    }
-    const matchId = videoId.match(RE_YOUTUBE);
-    if (matchId && matchId.length) {
-      return matchId[1];
-    }
-    throw new YoutubeTranscriptError("Impossible to retrieve Youtube video ID.");
-  }
-};
-
 // src/processors/transcriptDownloader.ts
+var import_obsidian2 = require("obsidian");
 var TranscriptDownloader = class {
   constructor(maxRetries = 3) {
     this.maxRetries = maxRetries;
   }
   /**
-   * Download YouTube transcript with retry logic
+   * Download YouTube transcript with retry logic using Obsidian's requestUrl
    */
   async download(videoId, languages = ["ko", "en"]) {
+    var _a2, _b;
     let lastError = null;
     for (let attempt = 0; attempt < this.maxRetries; attempt++) {
       try {
-        const transcript = await YoutubeTranscript.fetchTranscript(videoId, {
-          lang: languages.join(",")
+        const pageUrl = `https://www.youtube.com/watch?v=${videoId}`;
+        const pageResponse = await (0, import_obsidian2.requestUrl)({
+          url: pageUrl,
+          headers: {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+          }
         });
-        const fullText = transcript.map((segment) => segment.text).join(" ").replace(/\s+/g, " ").trim();
-        const metadata = {
-          title: "Unknown",
-          author: "Unknown"
-        };
+        const html = pageResponse.text;
+        const playerResponseMatch = html.match(/var ytInitialPlayerResponse = ({.*?});/);
+        if (!playerResponseMatch) {
+          throw new Error("Could not find ytInitialPlayerResponse");
+        }
+        const playerResponse = JSON.parse(playerResponseMatch[1]);
+        const captions = (_b = (_a2 = playerResponse == null ? void 0 : playerResponse.captions) == null ? void 0 : _a2.playerCaptionsTracklistRenderer) == null ? void 0 : _b.captionTracks;
+        if (!captions || captions.length === 0) {
+          throw new Error("No captions available for this video");
+        }
+        let captionTrack = null;
+        for (const lang of languages) {
+          captionTrack = captions.find(
+            (track) => {
+              var _a3;
+              return (_a3 = track.languageCode) == null ? void 0 : _a3.startsWith(lang);
+            }
+          );
+          if (captionTrack)
+            break;
+        }
+        if (!captionTrack) {
+          captionTrack = captions[0];
+        }
+        if (!captionTrack) {
+          throw new Error("No valid caption track found");
+        }
+        let captionUrl = captionTrack.baseUrl;
+        if (captionUrl.includes("?")) {
+          captionUrl += "&fmt=json3";
+        } else {
+          captionUrl += "?fmt=json3";
+        }
+        const captionResponse = await (0, import_obsidian2.requestUrl)({
+          url: captionUrl,
+          headers: {
+            "User-Agent": "Mozilla/5.0",
+            "Accept-Language": "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7"
+          }
+        });
+        const captionData = captionResponse.json;
+        const events = captionData.events || [];
+        const texts = [];
+        for (const event of events) {
+          if (event.segs) {
+            for (const seg of event.segs) {
+              if (seg.utf8) {
+                texts.push(seg.utf8);
+              }
+            }
+          }
+        }
+        if (texts.length === 0) {
+          throw new Error("No transcript text found");
+        }
+        const fullText = texts.join("").replace(/\s+/g, " ").trim();
+        const metadata = this.extractMetadataFromHtml(html);
         return {
           text: fullText,
           metadata
@@ -339,10 +260,10 @@ var TranscriptDownloader = class {
       }
     }
     const errorMessage = (lastError == null ? void 0 : lastError.message) || "Unknown error";
-    if (errorMessage.includes("Transcript is disabled")) {
-      throw new TranscriptNotFoundError("Transcript is disabled for this video");
-    } else if (errorMessage.includes("No transcript found")) {
+    if (errorMessage.includes("No captions available")) {
       throw new TranscriptNotFoundError("No transcript available for this video");
+    } else if (errorMessage.includes("ytInitialPlayerResponse")) {
+      throw new TranscriptNotFoundError("Could not access video data. Video may be private or deleted.");
     } else {
       throw new TranscriptNotFoundError(
         `Failed to download transcript after ${this.maxRetries} attempts: ${errorMessage}`
@@ -350,13 +271,10 @@ var TranscriptDownloader = class {
     }
   }
   /**
-   * Get video metadata from YouTube (title, author, etc.)
-   * This is a helper method that can be called separately
+   * Extract video metadata from HTML
    */
-  async getVideoMetadata(videoId) {
+  extractMetadataFromHtml(html) {
     try {
-      const response = await fetch(`https://www.youtube.com/watch?v=${videoId}`);
-      const html = await response.text();
       const titleMatch = html.match(/<title>(.+?)<\/title>/);
       const title = titleMatch ? titleMatch[1].replace(" - YouTube", "").trim() : "Unknown";
       const authorMatch = html.match(/"author":"(.+?)"/);
@@ -369,7 +287,7 @@ var TranscriptDownloader = class {
         publishDate
       };
     } catch (error) {
-      console.warn("Failed to fetch video metadata:", error);
+      console.warn("Failed to extract metadata:", error);
       return {
         title: "Unknown",
         author: "Unknown"
@@ -377,20 +295,10 @@ var TranscriptDownloader = class {
     }
   }
   /**
-   * Download transcript with full metadata
+   * Download transcript with full metadata (same as download now)
    */
   async downloadWithMetadata(videoId, languages = ["ko", "en"]) {
-    const [transcriptResult, metadata] = await Promise.all([
-      this.download(videoId, languages),
-      this.getVideoMetadata(videoId)
-    ]);
-    return {
-      text: transcriptResult.text,
-      metadata: {
-        ...transcriptResult.metadata,
-        ...metadata
-      }
-    };
+    return this.download(videoId, languages);
   }
 };
 
@@ -3398,7 +3306,7 @@ ${indentedLines}`;
 };
 
 // src/main.ts
-var YouTubeSummaryPlugin = class extends import_obsidian2.Plugin {
+var YouTubeSummaryPlugin = class extends import_obsidian3.Plugin {
   async onload() {
     await this.loadSettings();
     this.addRibbonIcon("youtube", "Process YouTube Note", async () => {
@@ -3444,20 +3352,20 @@ var YouTubeSummaryPlugin = class extends import_obsidian2.Plugin {
   async processCurrentNote() {
     const activeFile = this.app.workspace.getActiveFile();
     if (!activeFile) {
-      new import_obsidian2.Notice("\u274C No active note. Please open a note first.");
+      new import_obsidian3.Notice("\u274C No active note. Please open a note first.");
       return;
     }
     try {
-      new import_obsidian2.Notice("\u{1F4F9} Extracting video ID...");
+      new import_obsidian3.Notice("\u{1F4F9} Extracting video ID...");
       const videoId = await this.extractVideoIdFromNote(activeFile);
-      new import_obsidian2.Notice("\u{1F4E5} Downloading transcript...", 4e3);
+      new import_obsidian3.Notice("\u{1F4E5} Downloading transcript...", 4e3);
       const transcriptDownloader = new TranscriptDownloader(this.settings.maxRetries);
       const transcriptResult = await transcriptDownloader.downloadWithMetadata(
         videoId,
         this.settings.preferredLanguages
       );
-      new import_obsidian2.Notice(`\u2713 Transcript downloaded (${transcriptResult.text.length} characters)`, 3e3);
-      new import_obsidian2.Notice("\u{1F916} Generating AI summary... (this may take 30-60s)", 6e4);
+      new import_obsidian3.Notice(`\u2713 Transcript downloaded (${transcriptResult.text.length} characters)`, 3e3);
+      new import_obsidian3.Notice("\u{1F916} Generating AI summary... (this may take 30-60s)", 6e4);
       if (!this.settings.claudeApiKey) {
         throw new APIKeyMissingError();
       }
@@ -3466,8 +3374,8 @@ var YouTubeSummaryPlugin = class extends import_obsidian2.Plugin {
         transcriptResult.text,
         transcriptResult.metadata
       );
-      new import_obsidian2.Notice("\u2713 AI processing completed", 3e3);
-      new import_obsidian2.Notice("\u{1F4DD} Updating note...");
+      new import_obsidian3.Notice("\u2713 AI processing completed", 3e3);
+      new import_obsidian3.Notice("\u{1F4DD} Updating note...");
       if (this.settings.createBackup) {
         await this.createBackup(activeFile);
       }
@@ -3475,7 +3383,7 @@ var YouTubeSummaryPlugin = class extends import_obsidian2.Plugin {
       const noteUpdater = new NoteUpdater();
       const updatedContent = noteUpdater.updateFlexible(currentContent, processedSections);
       await this.app.vault.modify(activeFile, updatedContent);
-      new import_obsidian2.Notice("\u2705 Note processing completed!", 5e3);
+      new import_obsidian3.Notice("\u2705 Note processing completed!", 5e3);
     } catch (error) {
       this.handleError(error);
     }
@@ -3514,35 +3422,17 @@ var YouTubeSummaryPlugin = class extends import_obsidian2.Plugin {
   handleError(error) {
     console.error("Processing error:", error);
     if (error instanceof APIKeyMissingError) {
-      new import_obsidian2.Notice("\u274C " + error.message + "\n\nPlease configure your API key in settings.", 8e3);
+      new import_obsidian3.Notice("\u274C " + error.message + "\n\nPlease configure your API key in settings.", 8e3);
     } else if (error instanceof VideoIdNotFoundError) {
-      new import_obsidian2.Notice("\u274C " + error.message + "\n\nMake sure the source_url is a valid YouTube URL.", 8e3);
+      new import_obsidian3.Notice("\u274C " + error.message + "\n\nMake sure the source_url is a valid YouTube URL.", 8e3);
     } else if (error instanceof TranscriptNotFoundError) {
-      new import_obsidian2.Notice("\u274C " + error.message + "\n\nThe video may not have captions available.", 8e3);
+      new import_obsidian3.Notice("\u274C " + error.message + "\n\nThe video may not have captions available.", 8e3);
     } else if (error instanceof AIProcessingError) {
-      new import_obsidian2.Notice("\u274C " + error.message, 8e3);
+      new import_obsidian3.Notice("\u274C " + error.message, 8e3);
     } else if (error instanceof Error) {
-      new import_obsidian2.Notice("\u274C Error: " + error.message, 8e3);
+      new import_obsidian3.Notice("\u274C Error: " + error.message, 8e3);
     } else {
-      new import_obsidian2.Notice("\u274C An unknown error occurred. Check the console for details.", 8e3);
+      new import_obsidian3.Notice("\u274C An unknown error occurred. Check the console for details.", 8e3);
     }
   }
 };
-/*! Bundled license information:
-
-youtube-transcript/dist/youtube-transcript.esm.js:
-  (*! *****************************************************************************
-  Copyright (c) Microsoft Corporation.
-  
-  Permission to use, copy, modify, and/or distribute this software for any
-  purpose with or without fee is hereby granted.
-  
-  THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH
-  REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
-  AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT,
-  INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
-  LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR
-  OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
-  PERFORMANCE OF THIS SOFTWARE.
-  ***************************************************************************** *)
-*/
