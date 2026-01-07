@@ -1,5 +1,8 @@
 # YouTube Deep Learning Note
 
+![Version](https://img.shields.io/badge/version-1.0.2-blue)
+![License](https://img.shields.io/badge/license-MIT-green)
+
 Obsidian plugin to automatically process YouTube notes with AI-generated summaries using Claude API.
 
 ## Features
@@ -165,7 +168,30 @@ Costs may vary based on:
 - Video duration
 - Claude API pricing changes
 
+## Changelog
+
+### v1.0.2 (2026-01-07)
+- 🐛 Fixed "Unexpected end of JSON input" error when downloading transcripts
+- ✅ Added response validation before JSON parsing
+- 📝 Improved error messages with detailed logging
+- 🔒 Added null/undefined checks for caption data
+
+### v1.0.1 (2026-01-07)
+- 🐛 Fixed CORS issues by using Obsidian's requestUrl API
+- ⚡ Improved transcript download reliability
+
+### v1.0.0 (2026-01-07)
+- 🎉 Initial release
+- 📥 YouTube transcript download
+- 🤖 Claude AI integration
+- 📝 6 comprehensive analysis sections
+
 ## Troubleshooting
+
+### "Unexpected end of JSON input" or JSON parse errors
+- This has been fixed in v1.0.2
+- Update to the latest version
+- If still occurring, check internet connection and try again
 
 ### "No source_url found in frontmatter"
 - Make sure your note has frontmatter with `source_url` field
