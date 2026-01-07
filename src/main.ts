@@ -88,11 +88,26 @@ export default class YouTubeSummaryPlugin extends Plugin {
 
 			// Step 2: Download transcript
 			new Notice('📥 Downloading transcript...', 4000);
+
+			// Get plugin directory path
 			// @ts-ignore - app.vault.adapter.basePath is available
 			const vaultPath = this.app.vault.adapter.basePath;
-			// @ts-ignore - manifest.dir is available
-			const pluginDir = path.join(vaultPath, this.manifest.dir || '.obsidian/plugins/youtube-deep-learning-note');
+			// @ts-ignore - this.manifest.dir is available
+			const manifestDir = this.manifest.dir;
+
+			let pluginDir: string;
+			if (manifestDir) {
+				// Manifest dir is relative to vault, so join with vault path
+				pluginDir = path.join(vaultPath, manifestDir);
+			} else {
+				// Fallback to default plugin directory
+				pluginDir = path.join(vaultPath, '.obsidian', 'plugins', 'youtube-deep-learning-note');
+			}
+
+			console.log('Vault path:', vaultPath);
+			console.log('Manifest dir:', manifestDir);
 			console.log('Plugin directory:', pluginDir);
+
 			const transcriptDownloader = new TranscriptDownloader(this.settings.maxRetries, pluginDir);
 			const transcriptResult = await transcriptDownloader.downloadWithMetadata(
 				videoId,

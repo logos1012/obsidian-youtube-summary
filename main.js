@@ -198,14 +198,22 @@ var TranscriptDownloader = class {
       try {
         console.log(`Attempting to download transcript for video ${videoId} (attempt ${attempt + 1}/${this.maxRetries})`);
         const scriptPath = path.join(this.pluginDir, "scripts", "download_transcript.py");
+        console.log(`Python script path: ${scriptPath}`);
         const languageArgs = languages.join(" ");
         const command = `python3 "${scriptPath}" "${videoId}" ${languageArgs}`;
         console.log(`Executing: ${command}`);
         const { stdout, stderr } = await execAsync(command, {
           timeout: 3e4,
           // 30 second timeout
-          maxBuffer: 1024 * 1024 * 10
+          maxBuffer: 1024 * 1024 * 10,
           // 10MB buffer
+          encoding: "utf8",
+          env: {
+            ...process.env,
+            PYTHONIOENCODING: "utf-8",
+            LC_ALL: "en_US.UTF-8",
+            LANG: "en_US.UTF-8"
+          }
         });
         if (stderr) {
           console.warn("Python script stderr:", stderr);
@@ -3358,7 +3366,15 @@ var YouTubeSummaryPlugin = class extends import_obsidian3.Plugin {
       const videoId = await this.extractVideoIdFromNote(activeFile);
       new import_obsidian3.Notice("\u{1F4E5} Downloading transcript...", 4e3);
       const vaultPath = this.app.vault.adapter.basePath;
-      const pluginDir = path2.join(vaultPath, this.manifest.dir || ".obsidian/plugins/youtube-deep-learning-note");
+      const manifestDir = this.manifest.dir;
+      let pluginDir;
+      if (manifestDir) {
+        pluginDir = path2.join(vaultPath, manifestDir);
+      } else {
+        pluginDir = path2.join(vaultPath, ".obsidian", "plugins", "youtube-deep-learning-note");
+      }
+      console.log("Vault path:", vaultPath);
+      console.log("Manifest dir:", manifestDir);
       console.log("Plugin directory:", pluginDir);
       const transcriptDownloader = new TranscriptDownloader(this.settings.maxRetries, pluginDir);
       const transcriptResult = await transcriptDownloader.downloadWithMetadata(

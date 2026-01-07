@@ -1,6 +1,6 @@
 {
   "name": "youtube-deep-learning-note",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "description": "Obsidian plugin to process YouTube notes with AI-generated summaries",
   "main": "main.js",
   "scripts": {

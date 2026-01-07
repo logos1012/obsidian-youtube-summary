@@ -33,6 +33,7 @@ export class TranscriptDownloader {
 
 				// Path to Python script
 				const scriptPath = path.join(this.pluginDir, 'scripts', 'download_transcript.py');
+				console.log(`Python script path: ${scriptPath}`);
 
 				// Build command
 				const languageArgs = languages.join(' ');
@@ -40,10 +41,17 @@ export class TranscriptDownloader {
 
 				console.log(`Executing: ${command}`);
 
-				// Execute Python script
+				// Execute Python script with UTF-8 encoding
 				const { stdout, stderr } = await execAsync(command, {
 					timeout: 30000, // 30 second timeout
-					maxBuffer: 1024 * 1024 * 10 // 10MB buffer
+					maxBuffer: 1024 * 1024 * 10, // 10MB buffer
+					encoding: 'utf8',
+					env: {
+						...process.env,
+						PYTHONIOENCODING: 'utf-8',
+						LC_ALL: 'en_US.UTF-8',
+						LANG: 'en_US.UTF-8'
+					}
 				});
 
 				if (stderr) {
