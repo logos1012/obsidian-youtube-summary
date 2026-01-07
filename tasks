@@ -1,0 +1,67 @@
+옵시디안 플러그인을 만들 거야. '/Users/jake/Library/CloudStorage/GoogleDrive-jake@workbetterlife.com/내 드라이브/Obsidian Plug in/Youtube Summary'에 작업하자.
+
+## 워크플로우
+사용자가 옵시디안 웹 클리퍼를 사용해서 다음과 같이 유튜브 정보를 가져온 노트를 저장하게 돼.
+
+```
+{
+	"schemaVersion": "0.1.0",
+	"name": "YouTube Deep Learning Note",
+	"behavior": "create",
+	"noteContentFormat": "## Video\n\n<iframe width=\"560\" height=\"315\" src=\"https://www.youtube.com/embed/{{url|replace:\"/.*[?&]v=([a-zA-Z0-9_-]{11}).*/\":\"$1\"|replace:\"/.*youtu\\.be\\/([a-zA-Z0-9_-]{11}).*/\":\"$1\"}}\" title=\"YouTube video player\" frameborder=\"0\" allow=\"accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share\" referrerpolicy=\"strict-origin-when-cross-origin\" allowfullscreen></iframe>\n\n**Channel:** {{author}} | **Published:** {{published}}\n\n---\n\n## 1. Executive Summary\n\n{{\"Summarize this video in Korean: 1) One core message sentence, 2) Three key points as numbered list, 3) Video structure overview in 2 sentences, 4) Target audience.\"|callout:(\"summary\", \"Executive Summary\", false)}}\n\n---\n\n## 2. Chapter Analysis\n\n{{\"Write detailed narrative notes for each chapter in Korean like a lecture transcript summary. For EACH chapter explain thoroughly what the speaker said, their reasoning, examples given, and why it matters. Use paragraphs not bullet points. Write as if someone could fully understand the video without watching it. Cover ALL chapters thoroughly. NEVER output word count or character count like (약 200자).\"|callout:(\"note\", \"챕터별 분석\", false)}}\n\n---\n\n## 3. Key Concepts\n\n{{\"Extract ALL key concepts and terms from this video in Korean. Create a table with columns: Term, Definition, Context in video. Then explain any frameworks or models mentioned. Finally describe how concepts relate to each other.\"|callout:(\"info\", \"핵심 개념\", false)}}\n\n---\n\n## 4. Detailed Notes\n\n{{\"Create exhaustive learning notes in Korean covering: 1) Background context and why this matters, 2) All main arguments with supporting evidence, 3) Step-by-step methods or processes explained, 4) Data and statistics mentioned, 5) Limitations acknowledged. Be comprehensive enough to understand without watching.\"|callout:(\"note\", \"상세 학습 노트\", false)}}\n\n---\n\n## 5. Action Items\n\n{{\"Extract actionable insights in Korean: 1) Immediate actions as checkbox list, 2) Long-term application areas, 3) Books or resources mentioned, 4) Questions for further exploration.\"|callout:(\"tip\", \"실행 아이템\", false)}}\n\n---\n\n## 6. Feynman Explanation\n\n{{\"Using Feynman Technique, explain ALL main concepts from this video in Korean. Write comprehensively. Use simple analogies and everyday examples. Connect all key concepts naturally. Cover the ENTIRE video content. This will be used for InfraNodus knowledge graph analysis. NEVER output word count or character count like (약 400자).\"|callout:(\"tip\", \"쉬운 설명\", false)}}\n\n---\n\n## 7. My Notes\n\n### Related Knowledge\n- \n\n### Ideas\n- \n\n### Personal Memo\n- \n\n---\n\n*Clipped: {{date}}*",
+	"properties": [
+		{
+			"name": "title",
+			"value": "{{title|replace:\\\" - YouTube\\\":\\\"\\\"|trim}}",
+			"type": "text"
+		},
+		{
+			"name": "source_url",
+			"value": "{{url}}",
+			"type": "text"
+		},
+		{
+			"name": "channel",
+			"value": "{{author}}",
+			"type": "multitext"
+		},
+		{
+			"name": "created",
+			"value": "{{date}}",
+			"type": "date"
+		},
+		{
+			"name": "type",
+			"value": "deep-learning-note",
+			"type": "text"
+		},
+		{
+			"name": "category",
+			"value": "{{\\\"Determine the category: AI/ML, Tech, Business, Education, Cosmetics, Marketing, or Other. Return ONLY the category name.\\\"}}",
+			"type": "multitext"
+		},
+		{
+			"name": "tags",
+			"value": "youtube, deep-analysi",
+			"type": "multitext"
+		},
+		{
+			"name": "topics_kr",
+			"value": "{{\\\"이 영상의 핵심 주제 3-5개를 한국어로 추출. 쉼표로 구분.\\\"}}",
+			"type": "text"
+		}
+	],
+	"triggers": [
+		"https://www.youtube.com/",
+		"https://youtu.be/"
+	],
+	"noteNameFormat": "{{date|date:\"YYYY-MM-DD\"}}_{{title|replace:\" - YouTube\":\"\"|replace:\"/[\\\\/:*?\\\"<>|]/g\":\"-\"|trim}}_deep",
+	"path": "320-LectureContent"
+}
+
+```
+
+그러면, '/Users/jake/Library/CloudStorage/GoogleDrive-jake@workbetterlife.com/내 드라이브/Obsidian Plug in/Youtube Summary/download_transcript.py' 파일과 '/Users/jake/Library/CloudStorage/GoogleDrive-jake@workbetterlife.com/내 드라이브/Obsidian Plug in/Youtube Summary/get_transcript.py'을 참고해서 자막을 다운받고, 이걸 바탕으로 ai를 활용해서 내용을 정리해 노트를 완성하는 구조야. 
+
+실행은 리본과 팔레트 명령어 두개가 다 있어야 해.
+유튜브 내용이 저장된 파일에서 링크 주소가 프론트 매터에 있기 때문에 그 주소로부터 값을 가져오는 거야. 
