@@ -1,26 +1,18 @@
-import { requestUrl } from 'obsidian';
+import { YoutubeTranscript } from 'youtube-transcript';
 import { TranscriptResult, VideoMetadata } from '../types';
 import { TranscriptNotFoundError } from '../utils/errors';
 import { sleep } from '../utils/helpers';
-
-interface CaptionTrack {
-	baseUrl: string;
-	name?: {
-		simpleText: string;
-	};
-	languageCode?: string;
-}
+import { requestUrl } from 'obsidian';
 
 export class TranscriptDownloader {
 	private maxRetries: number;
-	private readonly RE_XML_TRANSCRIPT = /<text start="([^"]*)" dur="([^"]*)">([^<]*)<\/text>/g;
 
 	constructor(maxRetries: number = 3) {
 		this.maxRetries = maxRetries;
 	}
 
 	/**
-	 * Download YouTube transcript with retry logic using Obsidian's requestUrl
+	 * Download YouTube transcript using youtube-transcript library
 	 */
 	async download(
 		videoId: string,
@@ -30,118 +22,47 @@ export class TranscriptDownloader {
 
 		for (let attempt = 0; attempt < this.maxRetries; attempt++) {
 			try {
-				// Fetch YouTube page HTML
-				const pageUrl = `https://www.youtube.com/watch?v=${videoId}`;
-				const pageResponse = await requestUrl({
-					url: pageUrl,
-					headers: {
-						'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/85.0.4183.83 Safari/537.36'
-					}
-				});
+				console.log(`Attempting to download transcript for video ${videoId} (attempt ${attempt + 1}/${this.maxRetries})`);
 
-				const html = pageResponse.text;
+				// Try each language in order
+				let transcript = null;
+				let usedLang = languages[0];
 
-				// Extract captions from HTML (different parsing method)
-				const splittedHTML = html.split('"captions":');
-
-				if (splittedHTML.length <= 1) {
-					if (html.includes('class="g-recaptcha"')) {
-						throw new Error('YouTube requires captcha - too many requests');
-					}
-					if (!html.includes('"playabilityStatus":')) {
-						throw new Error('Video unavailable');
-					}
-					throw new Error('No captions available for this video');
-				}
-
-				// Parse captions JSON
-				let captionsData;
-				try {
-					const captionsJSON = splittedHTML[1].split(',"videoDetails')[0].replace('\n', '');
-					captionsData = JSON.parse(captionsJSON);
-				} catch (e) {
-					throw new Error('Could not parse captions data');
-				}
-
-				const captions = captionsData?.playerCaptionsTracklistRenderer;
-				if (!captions || !captions.captionTracks) {
-					throw new Error('No caption tracks available');
-				}
-
-				// Find caption track in preferred language
-				let captionTrack: CaptionTrack | null = null;
 				for (const lang of languages) {
-					captionTrack = captions.captionTracks.find((track: CaptionTrack) =>
-						track.languageCode?.startsWith(lang)
-					);
-					if (captionTrack) break;
-				}
-
-				// If no preferred language found, use first available
-				if (!captionTrack) {
-					captionTrack = captions.captionTracks[0];
-				}
-
-				if (!captionTrack) {
-					throw new Error('No valid caption track found');
-				}
-
-				// Get caption URL (use XML format, not JSON3)
-				const captionUrl = captionTrack.baseUrl;
-
-				console.log('Downloading transcript from:', captionUrl.substring(0, 100) + '...');
-
-				// Download caption data (XML format)
-				const captionResponse = await requestUrl({
-					url: captionUrl,
-					headers: {
-						'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_4) AppleWebKit/537.36',
-						'Accept-Language': languages.join(',')
+					try {
+						console.log(`Trying language: ${lang}`);
+						transcript = await YoutubeTranscript.fetchTranscript(videoId, { lang });
+						usedLang = lang;
+						console.log(`Successfully fetched transcript in ${lang}`);
+						break;
+					} catch (langError) {
+						console.log(`Failed to fetch in ${lang}:`, langError.message);
+						// Try next language
+						continue;
 					}
-				});
-
-				const transcriptXML = captionResponse.text;
-
-				if (!transcriptXML || transcriptXML.trim() === '') {
-					throw new Error('Empty response from caption API');
 				}
 
-				console.log('Transcript XML length:', transcriptXML.length);
-
-				// Parse XML transcript
-				const matches = [...transcriptXML.matchAll(this.RE_XML_TRANSCRIPT)];
-
-				if (matches.length === 0) {
-					console.error('No matches found. XML sample:', transcriptXML.substring(0, 500));
-					throw new Error('No transcript text found in XML');
+				// If no language worked, try without specifying language
+				if (!transcript) {
+					console.log('Trying to fetch transcript without language specification');
+					transcript = await YoutubeTranscript.fetchTranscript(videoId);
 				}
 
-				// Extract and decode text
-				const texts = matches.map(match => {
-					const text = match[3];
-					// Decode HTML entities
-					return text
-						.replace(/&amp;/g, '&')
-						.replace(/&lt;/g, '<')
-						.replace(/&gt;/g, '>')
-						.replace(/&quot;/g, '"')
-						.replace(/&#39;/g, "'")
-						.replace(/&nbsp;/g, ' ');
-				});
+				if (!transcript || transcript.length === 0) {
+					throw new Error('No transcript data received');
+				}
 
-				const fullText = texts
+				// Combine all transcript segments
+				const fullText = transcript
+					.map((item: any) => item.text)
 					.join(' ')
 					.replace(/\s+/g, ' ')
 					.trim();
 
-				if (!fullText) {
-					throw new Error('Transcript text is empty after parsing');
-				}
+				console.log(`Transcript downloaded successfully. Length: ${fullText.length} characters`);
 
-				console.log('Transcript extracted successfully. Length:', fullText.length);
-
-				// Extract metadata from page
-				const metadata = this.extractMetadataFromHtml(html);
+				// Get video metadata
+				const metadata = await this.extractMetadata(videoId);
 
 				return {
 					text: fullText,
@@ -159,6 +80,7 @@ export class TranscriptDownloader {
 
 				// Exponential backoff: wait 1s, 2s, 4s...
 				const delay = 1000 * Math.pow(2, attempt);
+				console.log(`Waiting ${delay}ms before retry...`);
 				await sleep(delay);
 			}
 		}
@@ -166,12 +88,17 @@ export class TranscriptDownloader {
 		// All retries failed
 		const errorMessage = lastError?.message || 'Unknown error';
 
-		if (errorMessage.includes('No captions available') || errorMessage.includes('No caption tracks')) {
+		console.error('All attempts failed. Last error:', errorMessage);
+
+		// Map common errors to user-friendly messages
+		if (errorMessage.includes('No transcripts are available')) {
 			throw new TranscriptNotFoundError('No transcript available for this video');
-		} else if (errorMessage.includes('Video unavailable')) {
-			throw new TranscriptNotFoundError('Could not access video data. Video may be private or deleted.');
-		} else if (errorMessage.includes('captcha')) {
-			throw new TranscriptNotFoundError('YouTube is blocking requests. Please try again later.');
+		} else if (errorMessage.includes('video is no longer available')) {
+			throw new TranscriptNotFoundError('Video is unavailable or has been deleted');
+		} else if (errorMessage.includes('Transcript is disabled')) {
+			throw new TranscriptNotFoundError('Transcript is disabled for this video');
+		} else if (errorMessage.includes('too many requests')) {
+			throw new TranscriptNotFoundError('YouTube is receiving too many requests. Please try again later.');
 		} else {
 			throw new TranscriptNotFoundError(
 				`Failed to download transcript after ${this.maxRetries} attempts: ${errorMessage}`
@@ -180,10 +107,20 @@ export class TranscriptDownloader {
 	}
 
 	/**
-	 * Extract video metadata from HTML
+	 * Extract video metadata from YouTube page
 	 */
-	private extractMetadataFromHtml(html: string): VideoMetadata {
+	private async extractMetadata(videoId: string): Promise<VideoMetadata> {
 		try {
+			const pageUrl = `https://www.youtube.com/watch?v=${videoId}`;
+			const pageResponse = await requestUrl({
+				url: pageUrl,
+				headers: {
+					'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_4) AppleWebKit/537.36'
+				}
+			});
+
+			const html = pageResponse.text;
+
 			// Extract title
 			const titleMatch = html.match(/<title>(.+?)<\/title>/);
 			const title = titleMatch
@@ -219,7 +156,6 @@ export class TranscriptDownloader {
 		videoId: string,
 		languages: string[] = ['ko', 'en']
 	): Promise<TranscriptResult> {
-		// Since download() now includes metadata extraction, just call it
 		return this.download(videoId, languages);
 	}
 }

@@ -163,95 +163,181 @@ var VideoIdExtractor = class {
   }
 };
 
+// node_modules/youtube-transcript/dist/youtube-transcript.esm.js
+function __awaiter(thisArg, _arguments, P, generator) {
+  function adopt(value) {
+    return value instanceof P ? value : new P(function(resolve) {
+      resolve(value);
+    });
+  }
+  return new (P || (P = Promise))(function(resolve, reject) {
+    function fulfilled(value) {
+      try {
+        step(generator.next(value));
+      } catch (e) {
+        reject(e);
+      }
+    }
+    function rejected(value) {
+      try {
+        step(generator["throw"](value));
+      } catch (e) {
+        reject(e);
+      }
+    }
+    function step(result) {
+      result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected);
+    }
+    step((generator = generator.apply(thisArg, _arguments || [])).next());
+  });
+}
+var RE_YOUTUBE = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/i;
+var USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/85.0.4183.83 Safari/537.36,gzip(gfe)";
+var RE_XML_TRANSCRIPT = /<text start="([^"]*)" dur="([^"]*)">([^<]*)<\/text>/g;
+var YoutubeTranscriptError = class extends Error {
+  constructor(message) {
+    super(`[YoutubeTranscript] \u{1F6A8} ${message}`);
+  }
+};
+var YoutubeTranscriptTooManyRequestError = class extends YoutubeTranscriptError {
+  constructor() {
+    super("YouTube is receiving too many requests from this IP and now requires solving a captcha to continue");
+  }
+};
+var YoutubeTranscriptVideoUnavailableError = class extends YoutubeTranscriptError {
+  constructor(videoId) {
+    super(`The video is no longer available (${videoId})`);
+  }
+};
+var YoutubeTranscriptDisabledError = class extends YoutubeTranscriptError {
+  constructor(videoId) {
+    super(`Transcript is disabled on this video (${videoId})`);
+  }
+};
+var YoutubeTranscriptNotAvailableError = class extends YoutubeTranscriptError {
+  constructor(videoId) {
+    super(`No transcripts are available for this video (${videoId})`);
+  }
+};
+var YoutubeTranscriptNotAvailableLanguageError = class extends YoutubeTranscriptError {
+  constructor(lang, availableLangs, videoId) {
+    super(`No transcripts are available in ${lang} this video (${videoId}). Available languages: ${availableLangs.join(", ")}`);
+  }
+};
+var YoutubeTranscript = class {
+  /**
+   * Fetch transcript from YTB Video
+   * @param videoId Video url or video identifier
+   * @param config Get transcript in a specific language ISO
+   */
+  static fetchTranscript(videoId, config) {
+    var _a2;
+    return __awaiter(this, void 0, void 0, function* () {
+      const identifier = this.retrieveVideoId(videoId);
+      const videoPageResponse = yield fetch(`https://www.youtube.com/watch?v=${identifier}`, {
+        headers: Object.assign(Object.assign({}, (config === null || config === void 0 ? void 0 : config.lang) && { "Accept-Language": config.lang }), { "User-Agent": USER_AGENT })
+      });
+      const videoPageBody = yield videoPageResponse.text();
+      const splittedHTML = videoPageBody.split('"captions":');
+      if (splittedHTML.length <= 1) {
+        if (videoPageBody.includes('class="g-recaptcha"')) {
+          throw new YoutubeTranscriptTooManyRequestError();
+        }
+        if (!videoPageBody.includes('"playabilityStatus":')) {
+          throw new YoutubeTranscriptVideoUnavailableError(videoId);
+        }
+        throw new YoutubeTranscriptDisabledError(videoId);
+      }
+      const captions = (_a2 = (() => {
+        try {
+          return JSON.parse(splittedHTML[1].split(',"videoDetails')[0].replace("\n", ""));
+        } catch (e) {
+          return void 0;
+        }
+      })()) === null || _a2 === void 0 ? void 0 : _a2["playerCaptionsTracklistRenderer"];
+      if (!captions) {
+        throw new YoutubeTranscriptDisabledError(videoId);
+      }
+      if (!("captionTracks" in captions)) {
+        throw new YoutubeTranscriptNotAvailableError(videoId);
+      }
+      if ((config === null || config === void 0 ? void 0 : config.lang) && !captions.captionTracks.some((track) => track.languageCode === (config === null || config === void 0 ? void 0 : config.lang))) {
+        throw new YoutubeTranscriptNotAvailableLanguageError(config === null || config === void 0 ? void 0 : config.lang, captions.captionTracks.map((track) => track.languageCode), videoId);
+      }
+      const transcriptURL = ((config === null || config === void 0 ? void 0 : config.lang) ? captions.captionTracks.find((track) => track.languageCode === (config === null || config === void 0 ? void 0 : config.lang)) : captions.captionTracks[0]).baseUrl;
+      const transcriptResponse = yield fetch(transcriptURL, {
+        headers: Object.assign(Object.assign({}, (config === null || config === void 0 ? void 0 : config.lang) && { "Accept-Language": config.lang }), { "User-Agent": USER_AGENT })
+      });
+      if (!transcriptResponse.ok) {
+        throw new YoutubeTranscriptNotAvailableError(videoId);
+      }
+      const transcriptBody = yield transcriptResponse.text();
+      const results = [...transcriptBody.matchAll(RE_XML_TRANSCRIPT)];
+      return results.map((result) => {
+        var _a3;
+        return {
+          text: result[3],
+          duration: parseFloat(result[2]),
+          offset: parseFloat(result[1]),
+          lang: (_a3 = config === null || config === void 0 ? void 0 : config.lang) !== null && _a3 !== void 0 ? _a3 : captions.captionTracks[0].languageCode
+        };
+      });
+    });
+  }
+  /**
+   * Retrieve video id from url or string
+   * @param videoId video url or video id
+   */
+  static retrieveVideoId(videoId) {
+    if (videoId.length === 11) {
+      return videoId;
+    }
+    const matchId = videoId.match(RE_YOUTUBE);
+    if (matchId && matchId.length) {
+      return matchId[1];
+    }
+    throw new YoutubeTranscriptError("Impossible to retrieve Youtube video ID.");
+  }
+};
+
 // src/processors/transcriptDownloader.ts
 var import_obsidian2 = require("obsidian");
 var TranscriptDownloader = class {
   constructor(maxRetries = 3) {
-    this.RE_XML_TRANSCRIPT = /<text start="([^"]*)" dur="([^"]*)">([^<]*)<\/text>/g;
     this.maxRetries = maxRetries;
   }
   /**
-   * Download YouTube transcript with retry logic using Obsidian's requestUrl
+   * Download YouTube transcript using youtube-transcript library
    */
   async download(videoId, languages = ["ko", "en"]) {
     let lastError = null;
     for (let attempt = 0; attempt < this.maxRetries; attempt++) {
       try {
-        const pageUrl = `https://www.youtube.com/watch?v=${videoId}`;
-        const pageResponse = await (0, import_obsidian2.requestUrl)({
-          url: pageUrl,
-          headers: {
-            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/85.0.4183.83 Safari/537.36"
-          }
-        });
-        const html = pageResponse.text;
-        const splittedHTML = html.split('"captions":');
-        if (splittedHTML.length <= 1) {
-          if (html.includes('class="g-recaptcha"')) {
-            throw new Error("YouTube requires captcha - too many requests");
-          }
-          if (!html.includes('"playabilityStatus":')) {
-            throw new Error("Video unavailable");
-          }
-          throw new Error("No captions available for this video");
-        }
-        let captionsData;
-        try {
-          const captionsJSON = splittedHTML[1].split(',"videoDetails')[0].replace("\n", "");
-          captionsData = JSON.parse(captionsJSON);
-        } catch (e) {
-          throw new Error("Could not parse captions data");
-        }
-        const captions = captionsData == null ? void 0 : captionsData.playerCaptionsTracklistRenderer;
-        if (!captions || !captions.captionTracks) {
-          throw new Error("No caption tracks available");
-        }
-        let captionTrack = null;
+        console.log(`Attempting to download transcript for video ${videoId} (attempt ${attempt + 1}/${this.maxRetries})`);
+        let transcript = null;
+        let usedLang = languages[0];
         for (const lang of languages) {
-          captionTrack = captions.captionTracks.find(
-            (track) => {
-              var _a2;
-              return (_a2 = track.languageCode) == null ? void 0 : _a2.startsWith(lang);
-            }
-          );
-          if (captionTrack)
+          try {
+            console.log(`Trying language: ${lang}`);
+            transcript = await YoutubeTranscript.fetchTranscript(videoId, { lang });
+            usedLang = lang;
+            console.log(`Successfully fetched transcript in ${lang}`);
             break;
-        }
-        if (!captionTrack) {
-          captionTrack = captions.captionTracks[0];
-        }
-        if (!captionTrack) {
-          throw new Error("No valid caption track found");
-        }
-        const captionUrl = captionTrack.baseUrl;
-        console.log("Downloading transcript from:", captionUrl.substring(0, 100) + "...");
-        const captionResponse = await (0, import_obsidian2.requestUrl)({
-          url: captionUrl,
-          headers: {
-            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_4) AppleWebKit/537.36",
-            "Accept-Language": languages.join(",")
+          } catch (langError) {
+            console.log(`Failed to fetch in ${lang}:`, langError.message);
+            continue;
           }
-        });
-        const transcriptXML = captionResponse.text;
-        if (!transcriptXML || transcriptXML.trim() === "") {
-          throw new Error("Empty response from caption API");
         }
-        console.log("Transcript XML length:", transcriptXML.length);
-        const matches = [...transcriptXML.matchAll(this.RE_XML_TRANSCRIPT)];
-        if (matches.length === 0) {
-          console.error("No matches found. XML sample:", transcriptXML.substring(0, 500));
-          throw new Error("No transcript text found in XML");
+        if (!transcript) {
+          console.log("Trying to fetch transcript without language specification");
+          transcript = await YoutubeTranscript.fetchTranscript(videoId);
         }
-        const texts = matches.map((match) => {
-          const text = match[3];
-          return text.replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&nbsp;/g, " ");
-        });
-        const fullText = texts.join(" ").replace(/\s+/g, " ").trim();
-        if (!fullText) {
-          throw new Error("Transcript text is empty after parsing");
+        if (!transcript || transcript.length === 0) {
+          throw new Error("No transcript data received");
         }
-        console.log("Transcript extracted successfully. Length:", fullText.length);
-        const metadata = this.extractMetadataFromHtml(html);
+        const fullText = transcript.map((item) => item.text).join(" ").replace(/\s+/g, " ").trim();
+        console.log(`Transcript downloaded successfully. Length: ${fullText.length} characters`);
+        const metadata = await this.extractMetadata(videoId);
         return {
           text: fullText,
           metadata
@@ -263,16 +349,20 @@ var TranscriptDownloader = class {
           break;
         }
         const delay = 1e3 * Math.pow(2, attempt);
+        console.log(`Waiting ${delay}ms before retry...`);
         await sleep(delay);
       }
     }
     const errorMessage = (lastError == null ? void 0 : lastError.message) || "Unknown error";
-    if (errorMessage.includes("No captions available") || errorMessage.includes("No caption tracks")) {
+    console.error("All attempts failed. Last error:", errorMessage);
+    if (errorMessage.includes("No transcripts are available")) {
       throw new TranscriptNotFoundError("No transcript available for this video");
-    } else if (errorMessage.includes("Video unavailable")) {
-      throw new TranscriptNotFoundError("Could not access video data. Video may be private or deleted.");
-    } else if (errorMessage.includes("captcha")) {
-      throw new TranscriptNotFoundError("YouTube is blocking requests. Please try again later.");
+    } else if (errorMessage.includes("video is no longer available")) {
+      throw new TranscriptNotFoundError("Video is unavailable or has been deleted");
+    } else if (errorMessage.includes("Transcript is disabled")) {
+      throw new TranscriptNotFoundError("Transcript is disabled for this video");
+    } else if (errorMessage.includes("too many requests")) {
+      throw new TranscriptNotFoundError("YouTube is receiving too many requests. Please try again later.");
     } else {
       throw new TranscriptNotFoundError(
         `Failed to download transcript after ${this.maxRetries} attempts: ${errorMessage}`
@@ -280,10 +370,18 @@ var TranscriptDownloader = class {
     }
   }
   /**
-   * Extract video metadata from HTML
+   * Extract video metadata from YouTube page
    */
-  extractMetadataFromHtml(html) {
+  async extractMetadata(videoId) {
     try {
+      const pageUrl = `https://www.youtube.com/watch?v=${videoId}`;
+      const pageResponse = await (0, import_obsidian2.requestUrl)({
+        url: pageUrl,
+        headers: {
+          "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_4) AppleWebKit/537.36"
+        }
+      });
+      const html = pageResponse.text;
       const titleMatch = html.match(/<title>(.+?)<\/title>/);
       const title = titleMatch ? titleMatch[1].replace(" - YouTube", "").trim() : "Unknown";
       const authorMatch = html.match(/"author":"(.+?)"/);
@@ -3445,3 +3543,21 @@ var YouTubeSummaryPlugin = class extends import_obsidian3.Plugin {
     }
   }
 };
+/*! Bundled license information:
+
+youtube-transcript/dist/youtube-transcript.esm.js:
+  (*! *****************************************************************************
+  Copyright (c) Microsoft Corporation.
+  
+  Permission to use, copy, modify, and/or distribute this software for any
+  purpose with or without fee is hereby granted.
+  
+  THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH
+  REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
+  AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT,
+  INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
+  LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR
+  OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+  PERFORMANCE OF THIS SOFTWARE.
+  ***************************************************************************** *)
+*/
