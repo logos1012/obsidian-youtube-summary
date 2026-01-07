@@ -1,6 +1,6 @@
 # YouTube Deep Learning Note
 
-![Version](https://img.shields.io/badge/version-1.0.2-blue)
+![Version](https://img.shields.io/badge/version-1.0.3-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
 Obsidian plugin to automatically process YouTube notes with AI-generated summaries using Claude API.
@@ -170,6 +170,13 @@ Costs may vary based on:
 
 ## Changelog
 
+### v1.0.3 (2026-01-07)
+- 🎉 **Major Fix**: Fixed YouTube transcript download by switching to XML format
+- 🔧 YouTube was blocking JSON3 requests, now using XML format
+- 📝 Improved HTML parsing method for better reliability
+- ✨ Added HTML entity decoding (&amp;, &#39;, etc.)
+- 📦 Added youtube-transcript package as dependency
+
 ### v1.0.2 (2026-01-07)
 - 🐛 Fixed "Unexpected end of JSON input" error when downloading transcripts
 - ✅ Added response validation before JSON parsing
@@ -188,8 +195,13 @@ Costs may vary based on:
 
 ## Troubleshooting
 
+### "Empty response from YouTube caption API"
+- This has been fixed in v1.0.3 by switching to XML format
+- Update to the latest version
+- YouTube was blocking JSON3 format requests
+
 ### "Unexpected end of JSON input" or JSON parse errors
-- This has been fixed in v1.0.2
+- This has been fixed in v1.0.2 and v1.0.3
 - Update to the latest version
 - If still occurring, check internet connection and try again
 
