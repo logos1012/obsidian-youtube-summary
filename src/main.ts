@@ -87,7 +87,9 @@ export default class YouTubeSummaryPlugin extends Plugin {
 
 			// Step 2: Download transcript
 			new Notice('📥 Downloading transcript...', 4000);
-			const transcriptDownloader = new TranscriptDownloader(this.settings.maxRetries);
+			// @ts-ignore - manifest.dir is available in Obsidian
+			const pluginDir = this.manifest.dir || '';
+			const transcriptDownloader = new TranscriptDownloader(this.settings.maxRetries, pluginDir);
 			const transcriptResult = await transcriptDownloader.downloadWithMetadata(
 				videoId,
 				this.settings.preferredLanguages

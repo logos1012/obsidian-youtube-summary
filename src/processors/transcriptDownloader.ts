@@ -1,18 +1,25 @@
-import { YoutubeTranscript } from 'youtube-transcript';
 import { TranscriptResult, VideoMetadata } from '../types';
 import { TranscriptNotFoundError } from '../utils/errors';
 import { sleep } from '../utils/helpers';
 import { requestUrl } from 'obsidian';
+import { exec } from 'child_process';
+import { promisify } from 'util';
+import * as path from 'path';
+
+const execAsync = promisify(exec);
 
 export class TranscriptDownloader {
 	private maxRetries: number;
+	private pluginDir: string;
 
-	constructor(maxRetries: number = 3) {
+	constructor(maxRetries: number = 3, pluginDir?: string) {
 		this.maxRetries = maxRetries;
+		// @ts-ignore - app.vault.adapter.basePath is available in Obsidian
+		this.pluginDir = pluginDir || '';
 	}
 
 	/**
-	 * Download YouTube transcript using youtube-transcript library
+	 * Download YouTube transcript using Python script
 	 */
 	async download(
 		videoId: string,
@@ -24,42 +31,35 @@ export class TranscriptDownloader {
 			try {
 				console.log(`Attempting to download transcript for video ${videoId} (attempt ${attempt + 1}/${this.maxRetries})`);
 
-				// Try each language in order
-				let transcript = null;
-				let usedLang = languages[0];
+				// Path to Python script
+				const scriptPath = path.join(this.pluginDir, 'scripts', 'download_transcript.py');
 
-				for (const lang of languages) {
-					try {
-						console.log(`Trying language: ${lang}`);
-						transcript = await YoutubeTranscript.fetchTranscript(videoId, { lang });
-						usedLang = lang;
-						console.log(`Successfully fetched transcript in ${lang}`);
-						break;
-					} catch (langError) {
-						console.log(`Failed to fetch in ${lang}:`, langError.message);
-						// Try next language
-						continue;
-					}
+				// Build command
+				const languageArgs = languages.join(' ');
+				const command = `python3 "${scriptPath}" "${videoId}" ${languageArgs}`;
+
+				console.log(`Executing: ${command}`);
+
+				// Execute Python script
+				const { stdout, stderr } = await execAsync(command, {
+					timeout: 30000, // 30 second timeout
+					maxBuffer: 1024 * 1024 * 10 // 10MB buffer
+				});
+
+				if (stderr) {
+					console.warn('Python script stderr:', stderr);
 				}
 
-				// If no language worked, try without specifying language
-				if (!transcript) {
-					console.log('Trying to fetch transcript without language specification');
-					transcript = await YoutubeTranscript.fetchTranscript(videoId);
+				// Parse JSON output
+				const result = JSON.parse(stdout);
+
+				if (!result.success) {
+					throw new Error(result.error || 'Unknown error from Python script');
 				}
 
-				if (!transcript || transcript.length === 0) {
-					throw new Error('No transcript data received');
-				}
+				const fullText = result.text.replace(/\s+/g, ' ').trim();
 
-				// Combine all transcript segments
-				const fullText = transcript
-					.map((item: any) => item.text)
-					.join(' ')
-					.replace(/\s+/g, ' ')
-					.trim();
-
-				console.log(`Transcript downloaded successfully. Length: ${fullText.length} characters`);
+				console.log(`Transcript downloaded successfully. Length: ${fullText.length} characters, Language: ${result.language}`);
 
 				// Get video metadata
 				const metadata = await this.extractMetadata(videoId);
@@ -72,6 +72,13 @@ export class TranscriptDownloader {
 			} catch (error) {
 				lastError = error as Error;
 				console.error(`Attempt ${attempt + 1} failed:`, error.message);
+
+				// Check if it's a Python-related error
+				if (error.message.includes('python3') || error.message.includes('not found')) {
+					throw new TranscriptNotFoundError(
+						'Python 3 is required but not found. Please install Python 3 to use this plugin.'
+					);
+				}
 
 				// If it's the last attempt, throw
 				if (attempt === this.maxRetries - 1) {
@@ -91,12 +98,12 @@ export class TranscriptDownloader {
 		console.error('All attempts failed. Last error:', errorMessage);
 
 		// Map common errors to user-friendly messages
-		if (errorMessage.includes('No transcripts are available')) {
-			throw new TranscriptNotFoundError('No transcript available for this video');
-		} else if (errorMessage.includes('video is no longer available')) {
-			throw new TranscriptNotFoundError('Video is unavailable or has been deleted');
-		} else if (errorMessage.includes('Transcript is disabled')) {
+		if (errorMessage.includes('Transcript is disabled')) {
 			throw new TranscriptNotFoundError('Transcript is disabled for this video');
+		} else if (errorMessage.includes('No transcript available')) {
+			throw new TranscriptNotFoundError('No transcript available for this video');
+		} else if (errorMessage.includes('Video is unavailable')) {
+			throw new TranscriptNotFoundError('Video is unavailable or has been deleted');
 		} else if (errorMessage.includes('too many requests')) {
 			throw new TranscriptNotFoundError('YouTube is receiving too many requests. Please try again later.');
 		} else {
@@ -157,5 +164,12 @@ export class TranscriptDownloader {
 		languages: string[] = ['ko', 'en']
 	): Promise<TranscriptResult> {
 		return this.download(videoId, languages);
+	}
+
+	/**
+	 * Set plugin directory for finding Python script
+	 */
+	setPluginDir(dir: string) {
+		this.pluginDir = dir;
 	}
 }

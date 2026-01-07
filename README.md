@@ -1,6 +1,6 @@
 # YouTube Deep Learning Note
 
-![Version](https://img.shields.io/badge/version-1.0.4-blue)
+![Version](https://img.shields.io/badge/version-1.0.5-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
 Obsidian plugin to automatically process YouTube notes with AI-generated summaries using Claude API.
@@ -19,6 +19,20 @@ Obsidian plugin to automatically process YouTube notes with AI-generated summari
 - 🌐 Multi-language support (Korean and English)
 - 💾 Automatic backup before processing
 - ⚡ Single-click processing from ribbon or command palette
+
+## Requirements
+
+**Python 3 is required** for this plugin to work. The plugin uses a Python script to download YouTube transcripts, which bypasses CORS restrictions in the Obsidian environment.
+
+To install Python 3:
+- **macOS**: `brew install python3` or download from [python.org](https://www.python.org/downloads/)
+- **Windows**: Download from [python.org](https://www.python.org/downloads/)
+- **Linux**: Usually pre-installed. If not: `sudo apt install python3 python3-pip`
+
+After installing Python, install the required Python package:
+```bash
+pip3 install youtube-transcript-api
+```
 
 ## Installation
 
@@ -169,6 +183,14 @@ Costs may vary based on:
 - Claude API pricing changes
 
 ## Changelog
+
+### v1.0.5 (2026-01-08)
+- 🔧 **Critical Fix**: Use Python script to bypass CORS restrictions
+- 📦 Added Python 3 requirement (youtube-transcript-api)
+- ✅ Resolves "Failed to fetch" errors in Obsidian environment
+- 📝 Better error messages when Python is not found
+
+**Important**: This version requires Python 3 and youtube-transcript-api to be installed.
 
 ### v1.0.4 (2026-01-07)
 - 🚀 **Major Improvement**: Now using youtube-transcript library directly
