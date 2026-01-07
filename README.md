@@ -1,6 +1,6 @@
 # YouTube Deep Learning Note
 
-![Version](https://img.shields.io/badge/version-1.0.5-blue)
+![Version](https://img.shields.io/badge/version-1.0.6-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
 Obsidian plugin to automatically process YouTube notes with AI-generated summaries using Claude API.
@@ -183,6 +183,11 @@ Costs may vary based on:
 - Claude API pricing changes
 
 ## Changelog
+
+### v1.0.6 (2026-01-08)
+- 🐛 **Hotfix**: Fixed plugin directory path resolution
+- ✅ Python script now correctly located using vault base path
+- 📝 Added debug logging for plugin directory
 
 ### v1.0.5 (2026-01-08)
 - 🔧 **Critical Fix**: Use Python script to bypass CORS restrictions

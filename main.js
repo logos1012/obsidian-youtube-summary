@@ -1005,29 +1005,29 @@ var APIClient = class {
   defaultIdempotencyKey() {
     return `stainless-node-retry-${uuid4()}`;
   }
-  get(path2, opts) {
-    return this.methodRequest("get", path2, opts);
+  get(path3, opts) {
+    return this.methodRequest("get", path3, opts);
   }
-  post(path2, opts) {
-    return this.methodRequest("post", path2, opts);
+  post(path3, opts) {
+    return this.methodRequest("post", path3, opts);
   }
-  patch(path2, opts) {
-    return this.methodRequest("patch", path2, opts);
+  patch(path3, opts) {
+    return this.methodRequest("patch", path3, opts);
   }
-  put(path2, opts) {
-    return this.methodRequest("put", path2, opts);
+  put(path3, opts) {
+    return this.methodRequest("put", path3, opts);
   }
-  delete(path2, opts) {
-    return this.methodRequest("delete", path2, opts);
+  delete(path3, opts) {
+    return this.methodRequest("delete", path3, opts);
   }
-  methodRequest(method, path2, opts) {
+  methodRequest(method, path3, opts) {
     return this.request(Promise.resolve(opts).then(async (opts2) => {
       const body = opts2 && isBlobLike(opts2 == null ? void 0 : opts2.body) ? new DataView(await opts2.body.arrayBuffer()) : (opts2 == null ? void 0 : opts2.body) instanceof DataView ? opts2.body : (opts2 == null ? void 0 : opts2.body) instanceof ArrayBuffer ? new DataView(opts2.body) : opts2 && ArrayBuffer.isView(opts2 == null ? void 0 : opts2.body) ? new DataView(opts2.body.buffer) : opts2 == null ? void 0 : opts2.body;
-      return { method, path: path2, ...opts2, body };
+      return { method, path: path3, ...opts2, body };
     }));
   }
-  getAPIList(path2, Page, opts) {
-    return this.requestAPIList(Page, { method: "get", path: path2, ...opts });
+  getAPIList(path3, Page, opts) {
+    return this.requestAPIList(Page, { method: "get", path: path3, ...opts });
   }
   calculateContentLength(body) {
     if (typeof body === "string") {
@@ -1046,10 +1046,10 @@ var APIClient = class {
   }
   buildRequest(options) {
     var _a2, _b, _c, _d, _e, _f;
-    const { method, path: path2, query, headers = {} } = options;
+    const { method, path: path3, query, headers = {} } = options;
     const body = ArrayBuffer.isView(options.body) || options.__binaryRequest && typeof options.body === "string" ? options.body : isMultipartBody(options.body) ? options.body.body : options.body ? JSON.stringify(options.body, null, 2) : null;
     const contentLength = this.calculateContentLength(body);
-    const url = this.buildURL(path2, query);
+    const url = this.buildURL(path3, query);
     if ("timeout" in options)
       validatePositiveInteger("timeout", options.timeout);
     const timeout = (_a2 = options.timeout) != null ? _a2 : this.timeout;
@@ -1159,8 +1159,8 @@ var APIClient = class {
     const request = this.makeRequest(options, null);
     return new PagePromise(this, request, Page);
   }
-  buildURL(path2, query) {
-    const url = isAbsoluteURL(path2) ? new URL(path2) : new URL(this.baseURL + (this.baseURL.endsWith("/") && path2.startsWith("/") ? path2.slice(1) : path2));
+  buildURL(path3, query) {
+    const url = isAbsoluteURL(path3) ? new URL(path3) : new URL(this.baseURL + (this.baseURL.endsWith("/") && path3.startsWith("/") ? path3.slice(1) : path3));
     const defaultQuery = this.defaultQuery();
     if (!isEmptyObj(defaultQuery)) {
       query = { ...defaultQuery, ...query };
@@ -3303,6 +3303,7 @@ ${indentedLines}`;
 };
 
 // src/main.ts
+var path2 = __toESM(require("path"));
 var YouTubeSummaryPlugin = class extends import_obsidian3.Plugin {
   async onload() {
     await this.loadSettings();
@@ -3356,7 +3357,9 @@ var YouTubeSummaryPlugin = class extends import_obsidian3.Plugin {
       new import_obsidian3.Notice("\u{1F4F9} Extracting video ID...");
       const videoId = await this.extractVideoIdFromNote(activeFile);
       new import_obsidian3.Notice("\u{1F4E5} Downloading transcript...", 4e3);
-      const pluginDir = this.manifest.dir || "";
+      const vaultPath = this.app.vault.adapter.basePath;
+      const pluginDir = path2.join(vaultPath, this.manifest.dir || ".obsidian/plugins/youtube-deep-learning-note");
+      console.log("Plugin directory:", pluginDir);
       const transcriptDownloader = new TranscriptDownloader(this.settings.maxRetries, pluginDir);
       const transcriptResult = await transcriptDownloader.downloadWithMetadata(
         videoId,

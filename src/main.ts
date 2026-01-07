@@ -11,6 +11,7 @@ import {
 	AIProcessingError,
 	APIKeyMissingError
 } from './utils/errors';
+import * as path from 'path';
 
 export default class YouTubeSummaryPlugin extends Plugin {
 	settings: YouTubeSummarySettings;
@@ -87,8 +88,11 @@ export default class YouTubeSummaryPlugin extends Plugin {
 
 			// Step 2: Download transcript
 			new Notice('📥 Downloading transcript...', 4000);
-			// @ts-ignore - manifest.dir is available in Obsidian
-			const pluginDir = this.manifest.dir || '';
+			// @ts-ignore - app.vault.adapter.basePath is available
+			const vaultPath = this.app.vault.adapter.basePath;
+			// @ts-ignore - manifest.dir is available
+			const pluginDir = path.join(vaultPath, this.manifest.dir || '.obsidian/plugins/youtube-deep-learning-note');
+			console.log('Plugin directory:', pluginDir);
 			const transcriptDownloader = new TranscriptDownloader(this.settings.maxRetries, pluginDir);
 			const transcriptResult = await transcriptDownloader.downloadWithMetadata(
 				videoId,
