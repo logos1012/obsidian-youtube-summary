@@ -1,6 +1,6 @@
 # YouTube Deep Learning Note
 
-![Version](https://img.shields.io/badge/version-1.0.3-blue)
+![Version](https://img.shields.io/badge/version-1.0.4-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
 Obsidian plugin to automatically process YouTube notes with AI-generated summaries using Claude API.
@@ -169,6 +169,13 @@ Costs may vary based on:
 - Claude API pricing changes
 
 ## Changelog
+
+### v1.0.4 (2026-01-07)
+- 🚀 **Major Improvement**: Now using youtube-transcript library directly
+- ✅ Better reliability by using proven, maintained library
+- 🌐 Language preference support (ko → en → default)
+- 📝 Improved error messages from library
+- 🔧 Automatic handling of YouTube API changes
 
 ### v1.0.3 (2026-01-07)
 - 🎉 **Major Fix**: Fixed YouTube transcript download by switching to XML format
