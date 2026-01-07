@@ -97,8 +97,24 @@ export class TranscriptDownloader {
 					}
 				});
 
-				// Parse caption JSON
-				const captionData = captionResponse.json;
+				// Validate response before parsing
+				if (!captionResponse.text || captionResponse.text.trim() === '') {
+					throw new Error('Empty response from YouTube caption API');
+				}
+
+				// Parse caption JSON with error handling
+				let captionData;
+				try {
+					captionData = captionResponse.json;
+				} catch (parseError) {
+					console.error('JSON parse error. Response text:', captionResponse.text.substring(0, 500));
+					throw new Error(`Failed to parse caption JSON: ${parseError.message}`);
+				}
+
+				if (!captionData) {
+					throw new Error('Caption data is null or undefined');
+				}
+
 				const events = captionData.events || [];
 
 				// Extract text from segments
