@@ -11,14 +11,9 @@ interface CaptionTrack {
 	languageCode?: string;
 }
 
-interface TranscriptSegment {
-	segs?: Array<{
-		utf8?: string;
-	}>;
-}
-
 export class TranscriptDownloader {
 	private maxRetries: number;
+	private readonly RE_XML_TRANSCRIPT = /<text start="([^"]*)" dur="([^"]*)">([^<]*)<\/text>/g;
 
 	constructor(maxRetries: number = 3) {
 		this.maxRetries = maxRetries;
@@ -40,30 +35,43 @@ export class TranscriptDownloader {
 				const pageResponse = await requestUrl({
 					url: pageUrl,
 					headers: {
-						'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+						'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/85.0.4183.83 Safari/537.36'
 					}
 				});
 
 				const html = pageResponse.text;
 
-				// Extract ytInitialPlayerResponse
-				const playerResponseMatch = html.match(/var ytInitialPlayerResponse = ({.*?});/);
-				if (!playerResponseMatch) {
-					throw new Error('Could not find ytInitialPlayerResponse');
+				// Extract captions from HTML (different parsing method)
+				const splittedHTML = html.split('"captions":');
+
+				if (splittedHTML.length <= 1) {
+					if (html.includes('class="g-recaptcha"')) {
+						throw new Error('YouTube requires captcha - too many requests');
+					}
+					if (!html.includes('"playabilityStatus":')) {
+						throw new Error('Video unavailable');
+					}
+					throw new Error('No captions available for this video');
 				}
 
-				const playerResponse = JSON.parse(playerResponseMatch[1]);
+				// Parse captions JSON
+				let captionsData;
+				try {
+					const captionsJSON = splittedHTML[1].split(',"videoDetails')[0].replace('\n', '');
+					captionsData = JSON.parse(captionsJSON);
+				} catch (e) {
+					throw new Error('Could not parse captions data');
+				}
 
-				// Get caption tracks
-				const captions = playerResponse?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
-				if (!captions || captions.length === 0) {
-					throw new Error('No captions available for this video');
+				const captions = captionsData?.playerCaptionsTracklistRenderer;
+				if (!captions || !captions.captionTracks) {
+					throw new Error('No caption tracks available');
 				}
 
 				// Find caption track in preferred language
 				let captionTrack: CaptionTrack | null = null;
 				for (const lang of languages) {
-					captionTrack = captions.find((track: CaptionTrack) =>
+					captionTrack = captions.captionTracks.find((track: CaptionTrack) =>
 						track.languageCode?.startsWith(lang)
 					);
 					if (captionTrack) break;
@@ -71,72 +79,66 @@ export class TranscriptDownloader {
 
 				// If no preferred language found, use first available
 				if (!captionTrack) {
-					captionTrack = captions[0];
+					captionTrack = captions.captionTracks[0];
 				}
 
-				// Get caption URL and request JSON format
-
-				// Double-check we have a valid caption track
 				if (!captionTrack) {
 					throw new Error('No valid caption track found');
 				}
 
-				let captionUrl = captionTrack.baseUrl;
-				if (captionUrl.includes('?')) {
-					captionUrl += '&fmt=json3';
-				} else {
-					captionUrl += '?fmt=json3';
-				}
+				// Get caption URL (use XML format, not JSON3)
+				const captionUrl = captionTrack.baseUrl;
 
-				// Download caption data
+				console.log('Downloading transcript from:', captionUrl.substring(0, 100) + '...');
+
+				// Download caption data (XML format)
 				const captionResponse = await requestUrl({
 					url: captionUrl,
 					headers: {
-						'User-Agent': 'Mozilla/5.0',
-						'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7'
+						'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_4) AppleWebKit/537.36',
+						'Accept-Language': languages.join(',')
 					}
 				});
 
-				// Validate response before parsing
-				if (!captionResponse.text || captionResponse.text.trim() === '') {
-					throw new Error('Empty response from YouTube caption API');
+				const transcriptXML = captionResponse.text;
+
+				if (!transcriptXML || transcriptXML.trim() === '') {
+					throw new Error('Empty response from caption API');
 				}
 
-				// Parse caption JSON with error handling
-				let captionData;
-				try {
-					captionData = captionResponse.json;
-				} catch (parseError) {
-					console.error('JSON parse error. Response text:', captionResponse.text.substring(0, 500));
-					throw new Error(`Failed to parse caption JSON: ${parseError.message}`);
+				console.log('Transcript XML length:', transcriptXML.length);
+
+				// Parse XML transcript
+				const matches = [...transcriptXML.matchAll(this.RE_XML_TRANSCRIPT)];
+
+				if (matches.length === 0) {
+					console.error('No matches found. XML sample:', transcriptXML.substring(0, 500));
+					throw new Error('No transcript text found in XML');
 				}
 
-				if (!captionData) {
-					throw new Error('Caption data is null or undefined');
-				}
-
-				const events = captionData.events || [];
-
-				// Extract text from segments
-				const texts: string[] = [];
-				for (const event of events) {
-					if (event.segs) {
-						for (const seg of event.segs) {
-							if (seg.utf8) {
-								texts.push(seg.utf8);
-							}
-						}
-					}
-				}
-
-				if (texts.length === 0) {
-					throw new Error('No transcript text found');
-				}
+				// Extract and decode text
+				const texts = matches.map(match => {
+					const text = match[3];
+					// Decode HTML entities
+					return text
+						.replace(/&amp;/g, '&')
+						.replace(/&lt;/g, '<')
+						.replace(/&gt;/g, '>')
+						.replace(/&quot;/g, '"')
+						.replace(/&#39;/g, "'")
+						.replace(/&nbsp;/g, ' ');
+				});
 
 				const fullText = texts
-					.join('')
+					.join(' ')
 					.replace(/\s+/g, ' ')
 					.trim();
+
+				if (!fullText) {
+					throw new Error('Transcript text is empty after parsing');
+				}
+
+				console.log('Transcript extracted successfully. Length:', fullText.length);
 
 				// Extract metadata from page
 				const metadata = this.extractMetadataFromHtml(html);
@@ -148,6 +150,7 @@ export class TranscriptDownloader {
 
 			} catch (error) {
 				lastError = error as Error;
+				console.error(`Attempt ${attempt + 1} failed:`, error.message);
 
 				// If it's the last attempt, throw
 				if (attempt === this.maxRetries - 1) {
@@ -163,10 +166,12 @@ export class TranscriptDownloader {
 		// All retries failed
 		const errorMessage = lastError?.message || 'Unknown error';
 
-		if (errorMessage.includes('No captions available')) {
+		if (errorMessage.includes('No captions available') || errorMessage.includes('No caption tracks')) {
 			throw new TranscriptNotFoundError('No transcript available for this video');
-		} else if (errorMessage.includes('ytInitialPlayerResponse')) {
+		} else if (errorMessage.includes('Video unavailable')) {
 			throw new TranscriptNotFoundError('Could not access video data. Video may be private or deleted.');
+		} else if (errorMessage.includes('captcha')) {
+			throw new TranscriptNotFoundError('YouTube is blocking requests. Please try again later.');
 		} else {
 			throw new TranscriptNotFoundError(
 				`Failed to download transcript after ${this.maxRetries} attempts: ${errorMessage}`
