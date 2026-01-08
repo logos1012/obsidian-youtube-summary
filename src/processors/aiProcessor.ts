@@ -158,7 +158,7 @@ Return ONLY a valid JSON object in this exact format:
 			const prompt = this.buildPrompt(transcript, metadata);
 
 			const response = await client.messages.create({
-				model: 'claude-3-5-sonnet-latest',
+				model: 'claude-sonnet-4-20250514',
 				max_tokens: 8000,
 				temperature: 0.7,
 				messages: [{
