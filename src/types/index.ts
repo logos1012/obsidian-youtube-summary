@@ -22,16 +22,8 @@ export interface ProcessedSections {
 }
 
 export interface YouTubeSummarySettings {
-	// AI Configuration
 	claudeApiKey: string;
-
-	// Transcript Settings
 	preferredLanguages: string[];
-
-	// Processing Options
-	createBackup: boolean;
-
-	// Advanced
 	maxRetries: number;
 	timeoutSeconds: number;
 }
@@ -39,7 +31,6 @@ export interface YouTubeSummarySettings {
 export const DEFAULT_SETTINGS: YouTubeSummarySettings = {
 	claudeApiKey: '',
 	preferredLanguages: ['ko', 'en'],
-	createBackup: true,
 	maxRetries: 3,
 	timeoutSeconds: 120
 };

@@ -103,10 +103,6 @@ export default class YouTubeSummaryPlugin extends Plugin {
 
 			new Notice('📝 Updating note...');
 
-			if (this.settings.createBackup) {
-				await this.createBackup(activeFile);
-			}
-
 			const currentContent = await this.app.vault.read(activeFile);
 
 			const noteUpdater = new NoteUpdater();
@@ -135,18 +131,6 @@ export default class YouTubeSummaryPlugin extends Plugin {
 
 		const extractor = new VideoIdExtractor();
 		return extractor.extract(sourceUrl);
-	}
-
-	private async createBackup(file: TFile): Promise<void> {
-		try {
-			const content = await this.app.vault.read(file);
-			const backupPath = file.path.replace(/\.md$/, `.backup-${Date.now()}.md`);
-
-			await this.app.vault.create(backupPath, content);
-			console.log(`Backup created: ${backupPath}`);
-		} catch (error) {
-			console.warn('Failed to create backup:', error);
-		}
 	}
 
 	private handleError(error: unknown): void {

@@ -33,7 +33,6 @@ var import_obsidian3 = require("obsidian");
 var DEFAULT_SETTINGS = {
   claudeApiKey: "",
   preferredLanguages: ["ko", "en"],
-  createBackup: true,
   maxRetries: 3,
   timeoutSeconds: 120
 };
@@ -57,11 +56,6 @@ var YouTubeSummarySettingTab = class extends import_obsidian.PluginSettingTab {
     containerEl.createEl("h3", { text: "Transcript Settings" });
     new import_obsidian.Setting(containerEl).setName("Preferred Languages").setDesc("Comma-separated language codes for transcript (e.g., ko,en). First language is preferred.").addText((text) => text.setPlaceholder("ko,en").setValue(this.plugin.settings.preferredLanguages.join(",")).onChange(async (value) => {
       this.plugin.settings.preferredLanguages = value.split(",").map((s) => s.trim()).filter((s) => s.length > 0);
-      await this.plugin.saveSettings();
-    }));
-    containerEl.createEl("h3", { text: "Processing Options" });
-    new import_obsidian.Setting(containerEl).setName("Create Backup").setDesc("Create a backup copy of the note before processing").addToggle((toggle) => toggle.setValue(this.plugin.settings.createBackup).onChange(async (value) => {
-      this.plugin.settings.createBackup = value;
       await this.plugin.saveSettings();
     }));
     containerEl.createEl("h3", { text: "Advanced Settings" });
@@ -91,7 +85,7 @@ var YouTubeSummarySettingTab = class extends import_obsidian.PluginSettingTab {
 				<li>The note will be automatically updated with AI-generated summaries</li>
 			</ol>
 			<p><strong>Note:</strong> Make sure the note has a <code>source_url</code> property in the frontmatter with the YouTube URL.</p>
-			<p><strong>Cost:</strong> Each video costs approximately $0.06 in Claude API credits.</p>
+			<p><strong>Cost:</strong> Each video costs approximately $0.15-0.20 in Claude API credits.</p>
 		`;
   }
 };
@@ -3424,9 +3418,6 @@ var YouTubeSummaryPlugin = class extends import_obsidian3.Plugin {
       );
       new import_obsidian3.Notice("\u2713 AI processing completed", 3e3);
       new import_obsidian3.Notice("\u{1F4DD} Updating note...");
-      if (this.settings.createBackup) {
-        await this.createBackup(activeFile);
-      }
       const currentContent = await this.app.vault.read(activeFile);
       const noteUpdater = new NoteUpdater();
       const updatedContent = noteUpdater.updateFlexible(currentContent, processedSections);
@@ -3447,16 +3438,6 @@ var YouTubeSummaryPlugin = class extends import_obsidian3.Plugin {
     }
     const extractor = new VideoIdExtractor();
     return extractor.extract(sourceUrl);
-  }
-  async createBackup(file) {
-    try {
-      const content = await this.app.vault.read(file);
-      const backupPath = file.path.replace(/\.md$/, `.backup-${Date.now()}.md`);
-      await this.app.vault.create(backupPath, content);
-      console.log(`Backup created: ${backupPath}`);
-    } catch (error) {
-      console.warn("Failed to create backup:", error);
-    }
   }
   handleError(error) {
     console.error("Processing error:", error);

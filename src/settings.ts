@@ -46,19 +46,6 @@ export class YouTubeSummarySettingTab extends PluginSettingTab {
 					await this.plugin.saveSettings();
 				}));
 
-		// Processing Options Section
-		containerEl.createEl('h3', { text: 'Processing Options' });
-
-		new Setting(containerEl)
-			.setName('Create Backup')
-			.setDesc('Create a backup copy of the note before processing')
-			.addToggle(toggle => toggle
-				.setValue(this.plugin.settings.createBackup)
-				.onChange(async (value) => {
-					this.plugin.settings.createBackup = value;
-					await this.plugin.saveSettings();
-				}));
-
 		// Advanced Settings Section
 		containerEl.createEl('h3', { text: 'Advanced Settings' });
 
@@ -103,7 +90,7 @@ export class YouTubeSummarySettingTab extends PluginSettingTab {
 				<li>The note will be automatically updated with AI-generated summaries</li>
 			</ol>
 			<p><strong>Note:</strong> Make sure the note has a <code>source_url</code> property in the frontmatter with the YouTube URL.</p>
-			<p><strong>Cost:</strong> Each video costs approximately $0.06 in Claude API credits.</p>
+			<p><strong>Cost:</strong> Each video costs approximately $0.15-0.20 in Claude API credits.</p>
 		`;
 	}
 }
