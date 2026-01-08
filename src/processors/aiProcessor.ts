@@ -1,13 +1,23 @@
 import Anthropic from '@anthropic-ai/sdk';
-import { ProcessedSections, VideoMetadata } from '../types';
+import { ProcessedSections, VideoMetadata, ClaudeModel } from '../types';
 import { AIProcessingError, APIKeyMissingError } from '../utils/errors';
+
+export interface AIProcessorOptions {
+	apiKey: string;
+	model: ClaudeModel;
+	maxTokens: number;
+}
 
 export class AIProcessor {
 	private client: Anthropic | null = null;
 	private apiKey: string;
+	private model: ClaudeModel;
+	private maxTokens: number;
 
-	constructor(apiKey: string) {
-		this.apiKey = apiKey;
+	constructor(options: AIProcessorOptions) {
+		this.apiKey = options.apiKey;
+		this.model = options.model;
+		this.maxTokens = options.maxTokens;
 	}
 
 	private getClient(): Anthropic {
@@ -170,8 +180,8 @@ Return ONLY a valid JSON object in this exact format:
 			const prompt = this.buildPrompt(transcript, metadata);
 
 			const response = await client.messages.create({
-				model: 'claude-sonnet-4-20250514',
-				max_tokens: 16000,
+				model: this.model,
+				max_tokens: this.maxTokens,
 				temperature: 0.7,
 				messages: [{
 					role: 'user',

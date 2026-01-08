@@ -89,11 +89,15 @@ export default class YouTubeSummaryPlugin extends Plugin {
 
 			new Notice('🤖 Generating AI summary... (this may take 30-60s)', 60000);
 
-			if (!this.settings.claudeApiKey) {
-				throw new APIKeyMissingError();
-			}
+		if (!this.settings.claudeApiKey) {
+			throw new APIKeyMissingError();
+		}
 
-			const aiProcessor = new AIProcessor(this.settings.claudeApiKey);
+		const aiProcessor = new AIProcessor({
+			apiKey: this.settings.claudeApiKey,
+			model: this.settings.aiModel,
+			maxTokens: this.settings.maxTokens
+		});
 			const processedSections = await aiProcessor.processAllSections(
 				transcriptResult.text,
 				transcriptResult.metadata

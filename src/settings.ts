@@ -1,6 +1,6 @@
 import { App, PluginSettingTab, Setting } from 'obsidian';
 import YouTubeSummaryPlugin from './main';
-import { YouTubeSummarySettings } from './types';
+import { YouTubeSummarySettings, CLAUDE_MODELS, ClaudeModel } from './types';
 
 export class YouTubeSummarySettingTab extends PluginSettingTab {
 	plugin: YouTubeSummaryPlugin;
@@ -29,6 +29,35 @@ export class YouTubeSummarySettingTab extends PluginSettingTab {
 				.onChange(async (value) => {
 					this.plugin.settings.claudeApiKey = value;
 					await this.plugin.saveSettings();
+				}));
+
+		new Setting(containerEl)
+			.setName('AI Model')
+			.setDesc('Select the Claude model to use for processing')
+			.addDropdown(dropdown => {
+				CLAUDE_MODELS.forEach(model => {
+					dropdown.addOption(model.value, model.label);
+				});
+				dropdown
+					.setValue(this.plugin.settings.aiModel)
+					.onChange(async (value) => {
+						this.plugin.settings.aiModel = value as ClaudeModel;
+						await this.plugin.saveSettings();
+					});
+			});
+
+		new Setting(containerEl)
+			.setName('Max Tokens')
+			.setDesc('Maximum number of tokens for AI response (4000-32000). Higher values allow longer responses but cost more.')
+			.addText(text => text
+				.setPlaceholder('16000')
+				.setValue(String(this.plugin.settings.maxTokens))
+				.onChange(async (value) => {
+					const num = parseInt(value);
+					if (!isNaN(num) && num >= 4000 && num <= 32000) {
+						this.plugin.settings.maxTokens = num;
+						await this.plugin.saveSettings();
+					}
 				}));
 
 		// Transcript Settings Section

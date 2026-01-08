@@ -30,11 +30,21 @@ module.exports = __toCommonJS(main_exports);
 var import_obsidian3 = require("obsidian");
 
 // src/types/index.ts
+var CLAUDE_MODELS = [
+  { value: "claude-sonnet-4-20250514", label: "Claude Sonnet 4 (Latest)" },
+  { value: "claude-3-7-sonnet-20250219", label: "Claude 3.7 Sonnet" },
+  { value: "claude-3-5-sonnet-20241022", label: "Claude 3.5 Sonnet" },
+  { value: "claude-3-5-haiku-20241022", label: "Claude 3.5 Haiku (Fast)" },
+  { value: "claude-3-opus-20240229", label: "Claude 3 Opus (Most Capable)" },
+  { value: "claude-3-haiku-20240307", label: "Claude 3 Haiku (Fastest)" }
+];
 var DEFAULT_SETTINGS = {
   claudeApiKey: "",
   preferredLanguages: ["ko", "en"],
   maxRetries: 3,
-  timeoutSeconds: 120
+  timeoutSeconds: 120,
+  aiModel: "claude-sonnet-4-20250514",
+  maxTokens: 16e3
 };
 
 // src/settings.ts
@@ -52,6 +62,22 @@ var YouTubeSummarySettingTab = class extends import_obsidian.PluginSettingTab {
     new import_obsidian.Setting(containerEl).setName("Claude API Key").setDesc("Enter your Anthropic Claude API key (get it from console.anthropic.com)").addText((text) => text.setPlaceholder("sk-ant-...").setValue(this.plugin.settings.claudeApiKey).onChange(async (value) => {
       this.plugin.settings.claudeApiKey = value;
       await this.plugin.saveSettings();
+    }));
+    new import_obsidian.Setting(containerEl).setName("AI Model").setDesc("Select the Claude model to use for processing").addDropdown((dropdown) => {
+      CLAUDE_MODELS.forEach((model) => {
+        dropdown.addOption(model.value, model.label);
+      });
+      dropdown.setValue(this.plugin.settings.aiModel).onChange(async (value) => {
+        this.plugin.settings.aiModel = value;
+        await this.plugin.saveSettings();
+      });
+    });
+    new import_obsidian.Setting(containerEl).setName("Max Tokens").setDesc("Maximum number of tokens for AI response (4000-32000). Higher values allow longer responses but cost more.").addText((text) => text.setPlaceholder("16000").setValue(String(this.plugin.settings.maxTokens)).onChange(async (value) => {
+      const num = parseInt(value);
+      if (!isNaN(num) && num >= 4e3 && num <= 32e3) {
+        this.plugin.settings.maxTokens = num;
+        await this.plugin.saveSettings();
+      }
     }));
     containerEl.createEl("h3", { text: "Transcript Settings" });
     new import_obsidian.Setting(containerEl).setName("Preferred Languages").setDesc("Comma-separated language codes for transcript (e.g., ko,en). First language is preferred.").addText((text) => text.setPlaceholder("ko,en").setValue(this.plugin.settings.preferredLanguages.join(",")).onChange(async (value) => {
@@ -3042,9 +3068,11 @@ var sdk_default = Anthropic;
 
 // src/processors/aiProcessor.ts
 var AIProcessor = class {
-  constructor(apiKey) {
+  constructor(options) {
     this.client = null;
-    this.apiKey = apiKey;
+    this.apiKey = options.apiKey;
+    this.model = options.model;
+    this.maxTokens = options.maxTokens;
   }
   getClient() {
     if (!this.client) {
@@ -3187,8 +3215,8 @@ Return ONLY a valid JSON object in this exact format:
       const client = this.getClient();
       const prompt = this.buildPrompt(transcript, metadata);
       const response = await client.messages.create({
-        model: "claude-sonnet-4-20250514",
-        max_tokens: 16e3,
+        model: this.model,
+        max_tokens: this.maxTokens,
         temperature: 0.7,
         messages: [{
           role: "user",
@@ -3430,7 +3458,11 @@ var YouTubeSummaryPlugin = class extends import_obsidian3.Plugin {
       if (!this.settings.claudeApiKey) {
         throw new APIKeyMissingError();
       }
-      const aiProcessor = new AIProcessor(this.settings.claudeApiKey);
+      const aiProcessor = new AIProcessor({
+        apiKey: this.settings.claudeApiKey,
+        model: this.settings.aiModel,
+        maxTokens: this.settings.maxTokens
+      });
       const processedSections = await aiProcessor.processAllSections(
         transcriptResult.text,
         transcriptResult.metadata
