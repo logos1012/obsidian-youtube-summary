@@ -244,9 +244,13 @@ var TranscriptDownloader = class {
         if (segments.length === 0) {
           throw new TranscriptNotFoundError("Could not parse transcript");
         }
-        const fullText = segments.map((s) => this.decodeHTMLEntities(s.text)).join(" ").replace(/\s+/g, " ").trim();
+        const decodedSegments = segments.map((s) => ({
+          ...s,
+          text: this.decodeHTMLEntities(s.text)
+        }));
+        const fullText = decodedSegments.map((s) => s.text).join(" ").replace(/\s+/g, " ").trim();
         console.log(`Transcript downloaded: ${fullText.length} characters`);
-        return { text: fullText, metadata };
+        return { text: fullText, segments: decodedSegments, metadata };
       } catch (error) {
         lastError = error;
         console.error(`Attempt ${attempt + 1} failed:`, error.message);
@@ -293,6 +297,15 @@ var TranscriptDownloader = class {
     }
     RE_XML_TRANSCRIPT.lastIndex = 0;
     return results;
+  }
+  formatTimestamp(seconds) {
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor(seconds % 3600 / 60);
+    const s = Math.floor(seconds % 60);
+    if (h > 0) {
+      return `${h}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+    }
+    return `${m}:${s.toString().padStart(2, "0")}`;
   }
   decodeHTMLEntities(text) {
     const entities = {
@@ -3212,145 +3225,123 @@ Return ONLY a valid JSON object in this exact format:
 
 // src/processors/noteUpdater.ts
 var NoteUpdater = class {
-  constructor() {
-    /**
-     * Section mapping: maps section IDs to their corresponding callout info
-     */
-    this.sectionMapping = {
-      executiveSummary: {
-        searchText: "Executive Summary",
-        calloutType: "summary",
-        calloutTitle: "Executive Summary"
-      },
-      chapterAnalysis: {
-        searchText: "\uCC55\uD130\uBCC4 \uBD84\uC11D",
-        calloutType: "note",
-        calloutTitle: "\uCC55\uD130\uBCC4 \uBD84\uC11D"
-      },
-      keyConcepts: {
-        searchText: "\uD575\uC2EC \uAC1C\uB150",
-        calloutType: "info",
-        calloutTitle: "\uD575\uC2EC \uAC1C\uB150"
-      },
-      detailedNotes: {
-        searchText: "\uC0C1\uC138 \uD559\uC2B5 \uB178\uD2B8",
-        calloutType: "note",
-        calloutTitle: "\uC0C1\uC138 \uD559\uC2B5 \uB178\uD2B8"
-      },
-      actionItems: {
-        searchText: "\uC2E4\uD589 \uC544\uC774\uD15C",
-        calloutType: "tip",
-        calloutTitle: "\uC2E4\uD589 \uC544\uC774\uD15C"
-      },
-      feynmanExplanation: {
-        searchText: "\uC26C\uC6B4 \uC124\uBA85",
-        calloutType: "tip",
-        calloutTitle: "\uC26C\uC6B4 \uC124\uBA85"
-      }
-    };
-  }
-  /**
-   * Update note content by replacing template prompts with AI-generated content
-   */
-  update(currentContent, sections) {
-    let updatedContent = currentContent;
-    for (const [sectionKey, sectionInfo] of Object.entries(this.sectionMapping)) {
-      const generatedContent = sections[sectionKey];
-      const calloutPattern = new RegExp(
-        `\\{\\{[^}]*?callout:\\s*\\(\\s*["']${sectionInfo.calloutType}["']\\s*,\\s*["']${sectionInfo.calloutTitle}["'][^)]*\\)\\s*\\}\\}`,
-        "g"
-      );
-      const calloutReplacement = this.formatCallout(
-        sectionInfo.calloutType,
-        sectionInfo.calloutTitle,
-        generatedContent
-      );
-      updatedContent = updatedContent.replace(calloutPattern, calloutReplacement);
-    }
+  updateFlexible(currentContent, sections, segments, videoId) {
+    let updatedContent = this.updateFrontmatter(currentContent, sections);
+    updatedContent = this.removeExistingSections(updatedContent);
+    const generatedSections = this.generateAllSections(sections, segments, videoId);
+    const insertPosition = this.findInsertPosition(updatedContent);
+    updatedContent = updatedContent.slice(0, insertPosition) + "\n" + generatedSections + updatedContent.slice(insertPosition);
     return updatedContent;
   }
-  /**
-   * Format content as an Obsidian callout
-   */
+  removeExistingSections(content) {
+    const sectionPattern = /\n---\n\n## [0-9]+\. [\s\S]*$/;
+    return content.replace(sectionPattern, "");
+  }
+  findInsertPosition(content) {
+    const clippedMatch = content.match(/\*Clipped:.*?\*/);
+    if (clippedMatch) {
+      return content.indexOf(clippedMatch[0]) + clippedMatch[0].length;
+    }
+    return content.length;
+  }
+  generateAllSections(sections, segments, videoId) {
+    let content = `
+---
+
+## 1. Executive Summary
+
+${this.formatCallout("summary", "Executive Summary", sections.executiveSummary)}
+
+---
+
+## 2. Chapter Analysis
+
+${this.formatCallout("note", "\uCC55\uD130\uBCC4 \uBD84\uC11D", sections.chapterAnalysis)}
+
+---
+
+## 3. Key Concepts
+
+${this.formatCallout("info", "\uD575\uC2EC \uAC1C\uB150", sections.keyConcepts)}
+
+---
+
+## 4. Detailed Notes
+
+${this.formatCallout("note", "\uC0C1\uC138 \uD559\uC2B5 \uB178\uD2B8", sections.detailedNotes)}
+
+---
+
+## 5. Action Items
+
+${this.formatCallout("tip", "\uC2E4\uD589 \uC544\uC774\uD15C", sections.actionItems)}
+
+---
+
+## 6. Feynman Explanation
+
+${this.formatCallout("tip", "\uC26C\uC6B4 \uC124\uBA85", sections.feynmanExplanation)}
+
+---
+
+## 7. My Notes
+
+### Related Knowledge
+- 
+
+### Ideas
+- 
+
+### Personal Memo
+- 
+
+---
+
+## 8. \uBCF8\uBB38 (Transcript)
+
+${this.formatTranscript(segments, videoId)}
+`;
+    return content;
+  }
+  formatTranscript(segments, videoId) {
+    if (!segments || segments.length === 0) {
+      return "*\uC790\uB9C9 \uC5C6\uC74C*";
+    }
+    return segments.map((seg) => {
+      const timestamp = this.formatTimestamp(seg.offset);
+      const link = videoId ? `[${timestamp}](https://www.youtube.com/watch?v=${videoId}&t=${Math.floor(seg.offset)}s)` : timestamp;
+      return `**${link}** ${seg.text}`;
+    }).join("\n\n");
+  }
+  formatTimestamp(seconds) {
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor(seconds % 3600 / 60);
+    const s = Math.floor(seconds % 60);
+    if (h > 0) {
+      return `${h}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+    }
+    return `${m}:${s.toString().padStart(2, "0")}`;
+  }
   formatCallout(type, title, content) {
     const lines = content.split("\n");
     const indentedLines = lines.map((line) => `> ${line}`).join("\n");
     return `> [!${type}] ${title}
 ${indentedLines}`;
   }
-  /**
-   * Alternative update method using more flexible pattern matching
-   * This is a fallback if the primary method doesn't work
-   */
-  updateFlexible(currentContent, sections) {
-    let updatedContent = currentContent;
-    console.log("=== NoteUpdater Debug ===");
-    console.log("Has Executive Summary pattern:", /\{\{[^}]*Executive Summary[^}]*\}\}/.test(currentContent));
-    console.log("Has \uCC55\uD130\uBCC4 \uBD84\uC11D pattern:", /\{\{[^}]*챕터별 분석[^}]*\}\}/.test(currentContent));
-    console.log("Sample of content (first 500 chars):", currentContent.substring(0, 500));
-    const bodyReplacements = [
-      {
-        pattern: /\{\{[^}]*Executive Summary[^}]*\}\}/g,
-        content: this.formatCallout("summary", "Executive Summary", sections.executiveSummary)
-      },
-      {
-        pattern: /\{\{[^}]*챕터별 분석[^}]*\}\}/g,
-        content: this.formatCallout("note", "\uCC55\uD130\uBCC4 \uBD84\uC11D", sections.chapterAnalysis)
-      },
-      {
-        pattern: /\{\{[^}]*핵심 개념[^}]*\}\}/g,
-        content: this.formatCallout("info", "\uD575\uC2EC \uAC1C\uB150", sections.keyConcepts)
-      },
-      {
-        pattern: /\{\{[^}]*상세 학습 노트[^}]*\}\}/g,
-        content: this.formatCallout("note", "\uC0C1\uC138 \uD559\uC2B5 \uB178\uD2B8", sections.detailedNotes)
-      },
-      {
-        pattern: /\{\{[^}]*실행 아이템[^}]*\}\}/g,
-        content: this.formatCallout("tip", "\uC2E4\uD589 \uC544\uC774\uD15C", sections.actionItems)
-      },
-      {
-        pattern: /\{\{[^}]*쉬운 설명[^}]*\}\}/g,
-        content: this.formatCallout("tip", "\uC26C\uC6B4 \uC124\uBA85", sections.feynmanExplanation)
-      }
-    ];
-    for (const { pattern, content } of bodyReplacements) {
-      updatedContent = updatedContent.replace(pattern, content);
-    }
-    updatedContent = this.updateFrontmatter(updatedContent, sections);
-    return updatedContent;
-  }
   updateFrontmatter(content, sections) {
     const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---/);
     if (!frontmatterMatch)
       return content;
     let frontmatter = frontmatterMatch[1];
-    frontmatter = frontmatter.replace(
-      /^(category:\s*).*$/m,
-      `$1"${sections.category}"`
-    );
-    frontmatter = frontmatter.replace(
-      /^(topics_kr:\s*).*$/m,
-      `$1"${sections.topicsKr}"`
-    );
+    if (/^category:\s*$/m.test(frontmatter) || /^category:\s*""$/m.test(frontmatter)) {
+      frontmatter = frontmatter.replace(/^category:\s*.*$/m, `category: "${sections.category}"`);
+    }
+    if (/^topics_kr:\s*$/m.test(frontmatter) || /^topics_kr:\s*""$/m.test(frontmatter)) {
+      frontmatter = frontmatter.replace(/^topics_kr:\s*.*$/m, `topics_kr: "${sections.topicsKr}"`);
+    }
     return content.replace(/^---\n[\s\S]*?\n---/, `---
 ${frontmatter}
 ---`);
-  }
-  /**
-   * Check if content has template patterns that need to be processed
-   */
-  hasTemplatesToProcess(content) {
-    const templatePattern = /\{\{[^}]*callout:[^}]*\}\}/;
-    return templatePattern.test(content);
-  }
-  /**
-   * Count how many templates are in the content
-   */
-  countTemplates(content) {
-    const templatePattern = /\{\{[^}]*callout:[^}]*\}\}/g;
-    const matches = content.match(templatePattern);
-    return matches ? matches.length : 0;
   }
 };
 
@@ -3423,12 +3414,13 @@ var YouTubeSummaryPlugin = class extends import_obsidian3.Plugin {
       new import_obsidian3.Notice("\u2713 AI processing completed", 3e3);
       new import_obsidian3.Notice("\u{1F4DD} Updating note...");
       const currentContent = await this.app.vault.read(activeFile);
-      console.log("Current content length:", currentContent.length);
-      console.log("Processed sections keys:", Object.keys(processedSections));
       const noteUpdater = new NoteUpdater();
-      const updatedContent = noteUpdater.updateFlexible(currentContent, processedSections);
-      console.log("Updated content length:", updatedContent.length);
-      console.log("Content changed:", currentContent !== updatedContent);
+      const updatedContent = noteUpdater.updateFlexible(
+        currentContent,
+        processedSections,
+        transcriptResult.segments,
+        videoId
+      );
       await this.app.vault.modify(activeFile, updatedContent);
       new import_obsidian3.Notice("\u2705 Note processing completed!", 5e3);
     } catch (error) {

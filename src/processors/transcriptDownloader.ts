@@ -4,7 +4,7 @@
  */
 
 import { requestUrl } from 'obsidian';
-import { TranscriptResult, VideoMetadata } from '../types';
+import { TranscriptResult, VideoMetadata, TranscriptSegment } from '../types';
 import { TranscriptNotFoundError } from '../utils/errors';
 import { sleep } from '../utils/helpers';
 
@@ -18,12 +18,6 @@ interface CaptionTrack {
 	languageCode: string;
 	name?: { simpleText?: string };
 	kind?: string;
-}
-
-interface TranscriptSegment {
-	text: string;
-	duration: number;
-	offset: number;
 }
 
 export class TranscriptDownloader {
@@ -126,15 +120,20 @@ export class TranscriptDownloader {
 					throw new TranscriptNotFoundError('Could not parse transcript');
 				}
 
-				const fullText = segments
-					.map(s => this.decodeHTMLEntities(s.text))
+				const decodedSegments = segments.map(s => ({
+					...s,
+					text: this.decodeHTMLEntities(s.text)
+				}));
+
+				const fullText = decodedSegments
+					.map(s => s.text)
 					.join(' ')
 					.replace(/\s+/g, ' ')
 					.trim();
 
 				console.log(`Transcript downloaded: ${fullText.length} characters`);
 
-				return { text: fullText, metadata };
+				return { text: fullText, segments: decodedSegments, metadata };
 
 			} catch (error) {
 				lastError = error as Error;
@@ -194,6 +193,17 @@ export class TranscriptDownloader {
 		RE_XML_TRANSCRIPT.lastIndex = 0;
 
 		return results;
+	}
+
+	formatTimestamp(seconds: number): string {
+		const h = Math.floor(seconds / 3600);
+		const m = Math.floor((seconds % 3600) / 60);
+		const s = Math.floor(seconds % 60);
+		
+		if (h > 0) {
+			return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+		}
+		return `${m}:${s.toString().padStart(2, '0')}`;
 	}
 
 	private decodeHTMLEntities(text: string): string {

@@ -5,8 +5,15 @@ export interface VideoMetadata {
 	publishDate?: string;
 }
 
+export interface TranscriptSegment {
+	text: string;
+	offset: number;
+	duration: number;
+}
+
 export interface TranscriptResult {
 	text: string;
+	segments: TranscriptSegment[];
 	metadata: VideoMetadata;
 }
 
