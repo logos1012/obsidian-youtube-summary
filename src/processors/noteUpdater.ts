@@ -97,13 +97,38 @@ ${this.formatTranscript(segments, videoId)}
 			return '*자막 없음*';
 		}
 
-		return segments.map(seg => {
+		const mergedSegments = this.mergeSegments(segments, 30);
+
+		return mergedSegments.map(seg => {
 			const timestamp = this.formatTimestamp(seg.offset);
 			const link = videoId 
 				? `[${timestamp}](https://www.youtube.com/watch?v=${videoId}&t=${Math.floor(seg.offset)}s)`
 				: timestamp;
 			return `**${link}** ${seg.text}`;
 		}).join('\n\n');
+	}
+
+	private mergeSegments(segments: TranscriptSegment[], intervalSeconds: number): TranscriptSegment[] {
+		if (segments.length === 0) return [];
+
+		const merged: TranscriptSegment[] = [];
+		let currentGroup: TranscriptSegment = { ...segments[0] };
+
+		for (let i = 1; i < segments.length; i++) {
+			const seg = segments[i];
+			const groupEndTime = currentGroup.offset + currentGroup.duration;
+			
+			if (seg.offset - currentGroup.offset < intervalSeconds) {
+				currentGroup.text += ' ' + seg.text;
+				currentGroup.duration = (seg.offset + seg.duration) - currentGroup.offset;
+			} else {
+				merged.push(currentGroup);
+				currentGroup = { ...seg };
+			}
+		}
+		merged.push(currentGroup);
+
+		return merged;
 	}
 
 	private formatTimestamp(seconds: number): string {
