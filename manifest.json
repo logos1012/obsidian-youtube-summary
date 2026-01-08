@@ -1,10 +1,10 @@
 {
   "id": "youtube-deep-learning-note",
   "name": "YouTube Deep Learning Note",
-  "version": "1.1.0",
+  "version": "2.0.0",
   "minAppVersion": "0.15.0",
-  "description": "Process YouTube notes with AI-generated summaries using Claude API",
+  "description": "Process YouTube notes with AI-generated summaries using Claude API. No Python required!",
   "author": "Jake",
-  "authorUrl": "https://github.com/yourusername",
+  "authorUrl": "https://github.com/logos1012",
   "isDesktopOnly": false
 }

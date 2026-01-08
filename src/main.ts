@@ -11,7 +11,6 @@ import {
 	AIProcessingError,
 	APIKeyMissingError
 } from './utils/errors';
-import * as path from 'path';
 
 export default class YouTubeSummaryPlugin extends Plugin {
 	settings: YouTubeSummarySettings;
@@ -19,12 +18,10 @@ export default class YouTubeSummaryPlugin extends Plugin {
 	async onload() {
 		await this.loadSettings();
 
-		// Add ribbon icon
 		this.addRibbonIcon('youtube', 'Process YouTube Note', async () => {
 			await this.processCurrentNote();
 		});
 
-		// Add command: Process current note
 		this.addCommand({
 			id: 'process-youtube-note',
 			name: 'Process current note',
@@ -40,19 +37,17 @@ export default class YouTubeSummaryPlugin extends Plugin {
 			}
 		});
 
-		// Add command: Open settings
 		this.addCommand({
 			id: 'open-settings',
 			name: 'Open Settings',
 			callback: () => {
-				// @ts-ignore - accessing private API
+				// @ts-ignore
 				this.app.setting.open();
-				// @ts-ignore - accessing private API
+				// @ts-ignore
 				this.app.setting.openTabById(this.manifest.id);
 			}
 		});
 
-		// Add settings tab
 		this.addSettingTab(new YouTubeSummarySettingTab(this.app, this));
 
 		console.log('YouTube Deep Learning Note plugin loaded');
@@ -70,9 +65,6 @@ export default class YouTubeSummaryPlugin extends Plugin {
 		await this.saveData(this.settings);
 	}
 
-	/**
-	 * Main processing function
-	 */
 	async processCurrentNote(): Promise<void> {
 		const activeFile = this.app.workspace.getActiveFile();
 
@@ -82,33 +74,12 @@ export default class YouTubeSummaryPlugin extends Plugin {
 		}
 
 		try {
-			// Step 1: Validate note and extract video ID
 			new Notice('📹 Extracting video ID...');
 			const videoId = await this.extractVideoIdFromNote(activeFile);
 
-			// Step 2: Download transcript
 			new Notice('📥 Downloading transcript...', 4000);
 
-			// Get plugin directory path
-			// @ts-ignore - app.vault.adapter.basePath is available
-			const vaultPath = this.app.vault.adapter.basePath;
-			// @ts-ignore - this.manifest.dir is available
-			const manifestDir = this.manifest.dir;
-
-			let pluginDir: string;
-			if (manifestDir) {
-				// Manifest dir is relative to vault, so join with vault path
-				pluginDir = path.join(vaultPath, manifestDir);
-			} else {
-				// Fallback to default plugin directory
-				pluginDir = path.join(vaultPath, '.obsidian', 'plugins', 'youtube-deep-learning-note');
-			}
-
-			console.log('Vault path:', vaultPath);
-			console.log('Manifest dir:', manifestDir);
-			console.log('Plugin directory:', pluginDir);
-
-			const transcriptDownloader = new TranscriptDownloader(this.settings.maxRetries, pluginDir);
+			const transcriptDownloader = new TranscriptDownloader(this.settings.maxRetries);
 			const transcriptResult = await transcriptDownloader.downloadWithMetadata(
 				videoId,
 				this.settings.preferredLanguages
@@ -116,10 +87,8 @@ export default class YouTubeSummaryPlugin extends Plugin {
 
 			new Notice(`✓ Transcript downloaded (${transcriptResult.text.length} characters)`, 3000);
 
-			// Step 3: Process with AI
 			new Notice('🤖 Generating AI summary... (this may take 30-60s)', 60000);
 
-			// Check API key
 			if (!this.settings.claudeApiKey) {
 				throw new APIKeyMissingError();
 			}
@@ -132,22 +101,17 @@ export default class YouTubeSummaryPlugin extends Plugin {
 
 			new Notice('✓ AI processing completed', 3000);
 
-			// Step 4: Update note
 			new Notice('📝 Updating note...');
 
-			// Create backup if enabled
 			if (this.settings.createBackup) {
 				await this.createBackup(activeFile);
 			}
 
-			// Read current content
 			const currentContent = await this.app.vault.read(activeFile);
 
-			// Update content
 			const noteUpdater = new NoteUpdater();
 			const updatedContent = noteUpdater.updateFlexible(currentContent, processedSections);
 
-			// Save updated content
 			await this.app.vault.modify(activeFile, updatedContent);
 
 			new Notice('✅ Note processing completed!', 5000);
@@ -157,11 +121,7 @@ export default class YouTubeSummaryPlugin extends Plugin {
 		}
 	}
 
-	/**
-	 * Extract video ID from note frontmatter
-	 */
 	private async extractVideoIdFromNote(file: TFile): Promise<string> {
-		// Get frontmatter
 		const cache = this.app.metadataCache.getFileCache(file);
 
 		if (!cache?.frontmatter) {
@@ -173,14 +133,10 @@ export default class YouTubeSummaryPlugin extends Plugin {
 			throw new Error('No source_url found in frontmatter.');
 		}
 
-		// Extract video ID
 		const extractor = new VideoIdExtractor();
 		return extractor.extract(sourceUrl);
 	}
 
-	/**
-	 * Create backup of note
-	 */
 	private async createBackup(file: TFile): Promise<void> {
 		try {
 			const content = await this.app.vault.read(file);
@@ -190,13 +146,9 @@ export default class YouTubeSummaryPlugin extends Plugin {
 			console.log(`Backup created: ${backupPath}`);
 		} catch (error) {
 			console.warn('Failed to create backup:', error);
-			// Don't throw - backup failure shouldn't stop processing
 		}
 	}
 
-	/**
-	 * Handle errors with user-friendly messages
-	 */
 	private handleError(error: unknown): void {
 		console.error('Processing error:', error);
 
