@@ -3284,6 +3284,10 @@ ${indentedLines}`;
    */
   updateFlexible(currentContent, sections) {
     let updatedContent = currentContent;
+    console.log("=== NoteUpdater Debug ===");
+    console.log("Has Executive Summary pattern:", /\{\{[^}]*Executive Summary[^}]*\}\}/.test(currentContent));
+    console.log("Has \uCC55\uD130\uBCC4 \uBD84\uC11D pattern:", /\{\{[^}]*챕터별 분석[^}]*\}\}/.test(currentContent));
+    console.log("Sample of content (first 500 chars):", currentContent.substring(0, 500));
     const bodyReplacements = [
       {
         pattern: /\{\{[^}]*Executive Summary[^}]*\}\}/g,
@@ -3419,8 +3423,12 @@ var YouTubeSummaryPlugin = class extends import_obsidian3.Plugin {
       new import_obsidian3.Notice("\u2713 AI processing completed", 3e3);
       new import_obsidian3.Notice("\u{1F4DD} Updating note...");
       const currentContent = await this.app.vault.read(activeFile);
+      console.log("Current content length:", currentContent.length);
+      console.log("Processed sections keys:", Object.keys(processedSections));
       const noteUpdater = new NoteUpdater();
       const updatedContent = noteUpdater.updateFlexible(currentContent, processedSections);
+      console.log("Updated content length:", updatedContent.length);
+      console.log("Content changed:", currentContent !== updatedContent);
       await this.app.vault.modify(activeFile, updatedContent);
       new import_obsidian3.Notice("\u2705 Note processing completed!", 5e3);
     } catch (error) {

@@ -88,6 +88,11 @@ export class NoteUpdater {
 	 */
 	updateFlexible(currentContent: string, sections: ProcessedSections): string {
 		let updatedContent = currentContent;
+		
+		console.log('=== NoteUpdater Debug ===');
+		console.log('Has Executive Summary pattern:', /\{\{[^}]*Executive Summary[^}]*\}\}/.test(currentContent));
+		console.log('Has 챕터별 분석 pattern:', /\{\{[^}]*챕터별 분석[^}]*\}\}/.test(currentContent));
+		console.log('Sample of content (first 500 chars):', currentContent.substring(0, 500));
 
 		const bodyReplacements: Array<{ pattern: RegExp, content: string }> = [
 			{
