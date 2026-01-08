@@ -3333,11 +3333,15 @@ ${indentedLines}`;
     if (!frontmatterMatch)
       return content;
     let frontmatter = frontmatterMatch[1];
-    if (/^category:\s*$/m.test(frontmatter) || /^category:\s*""$/m.test(frontmatter)) {
-      frontmatter = frontmatter.replace(/^category:\s*.*$/m, `category: "${sections.category}"`);
+    const categoryEmptyPattern = /^category:\s*""?\s*$(\n\s+-\s*"[^"]*"\s*$)*/m;
+    const categoryEmptyMatch = frontmatter.match(categoryEmptyPattern);
+    if (categoryEmptyMatch) {
+      frontmatter = frontmatter.replace(categoryEmptyPattern, `category: "${sections.category}"`);
     }
-    if (/^topics_kr:\s*$/m.test(frontmatter) || /^topics_kr:\s*""$/m.test(frontmatter)) {
-      frontmatter = frontmatter.replace(/^topics_kr:\s*.*$/m, `topics_kr: "${sections.topicsKr}"`);
+    const topicsEmptyPattern = /^topics_kr:\s*""?\s*$(\n\s+-\s*"[^"]*"\s*$)*/m;
+    const topicsEmptyMatch = frontmatter.match(topicsEmptyPattern);
+    if (topicsEmptyMatch) {
+      frontmatter = frontmatter.replace(topicsEmptyPattern, `topics_kr: "${sections.topicsKr}"`);
     }
     return content.replace(/^---\n[\s\S]*?\n---/, `---
 ${frontmatter}

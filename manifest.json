@@ -1,7 +1,7 @@
 {
   "id": "youtube-deep-learning-note",
   "name": "YouTube Deep Learning Note",
-  "version": "2.0.7",
+  "version": "2.0.8",
   "minAppVersion": "0.15.0",
   "description": "Process YouTube notes with AI-generated summaries using Claude API. No Python required!",
   "author": "Jake",

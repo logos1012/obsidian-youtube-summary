@@ -129,12 +129,19 @@ ${this.formatTranscript(segments, videoId)}
 
 		let frontmatter = frontmatterMatch[1];
 
-		if (/^category:\s*$/m.test(frontmatter) || /^category:\s*""$/m.test(frontmatter)) {
-			frontmatter = frontmatter.replace(/^category:\s*.*$/m, `category: "${sections.category}"`);
+		// Check if category is empty or has empty value (handles both single value and array format)
+		// Pattern matches: "category:" or "category: """" followed by optional array items (  - "value")
+		const categoryEmptyPattern = /^category:\s*""?\s*$(\n\s+-\s*"[^"]*"\s*$)*/m;
+		const categoryEmptyMatch = frontmatter.match(categoryEmptyPattern);
+		if (categoryEmptyMatch) {
+			frontmatter = frontmatter.replace(categoryEmptyPattern, `category: "${sections.category}"`);
 		}
 
-		if (/^topics_kr:\s*$/m.test(frontmatter) || /^topics_kr:\s*""$/m.test(frontmatter)) {
-			frontmatter = frontmatter.replace(/^topics_kr:\s*.*$/m, `topics_kr: "${sections.topicsKr}"`);
+		// Same pattern for topics_kr
+		const topicsEmptyPattern = /^topics_kr:\s*""?\s*$(\n\s+-\s*"[^"]*"\s*$)*/m;
+		const topicsEmptyMatch = frontmatter.match(topicsEmptyPattern);
+		if (topicsEmptyMatch) {
+			frontmatter = frontmatter.replace(topicsEmptyPattern, `topics_kr: "${sections.topicsKr}"`);
 		}
 
 		return content.replace(/^---\n[\s\S]*?\n---/, `---\n${frontmatter}\n---`);
