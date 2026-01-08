@@ -170,8 +170,7 @@ var VideoIdExtractor = class {
 
 // src/processors/transcriptDownloader.ts
 var import_obsidian2 = require("obsidian");
-var RE_YOUTUBE = /(?:youtube\.com\/(?:[^/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?/\s]{11})/i;
-var USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/85.0.4183.83 Safari/537.36,gzip(gfe)";
+var USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 var RE_XML_TRANSCRIPT = /<text start="([^"]*)" dur="([^"]*)">([^<]*)<\/text>/g;
 var TranscriptDownloader = class {
   constructor(maxRetries = 3) {
@@ -183,45 +182,59 @@ var TranscriptDownloader = class {
     for (let attempt = 0; attempt < this.maxRetries; attempt++) {
       try {
         console.log(`Downloading transcript for ${videoId} (attempt ${attempt + 1}/${this.maxRetries})`);
-        const videoPageResponse = await (0, import_obsidian2.requestUrl)({
+        const watchPageResponse = await (0, import_obsidian2.requestUrl)({
           url: `https://www.youtube.com/watch?v=${videoId}`,
           headers: {
             "User-Agent": USER_AGENT,
-            "Accept-Language": languages.join(",")
+            "Accept-Language": "en-US,en;q=0.9"
           }
         });
-        const videoPageBody = videoPageResponse.text;
-        if (videoPageBody.includes('class="g-recaptcha"')) {
+        const pageHtml = watchPageResponse.text;
+        if (pageHtml.includes('class="g-recaptcha"')) {
           throw new TranscriptNotFoundError(
             "YouTube is receiving too many requests. Please try again later."
           );
         }
-        if (!videoPageBody.includes('"playabilityStatus":')) {
-          throw new TranscriptNotFoundError(
-            "Video is unavailable or has been deleted"
-          );
+        const apiKeyMatch = pageHtml.match(/"INNERTUBE_API_KEY":\s*"([a-zA-Z0-9_-]+)"/);
+        if (!(apiKeyMatch == null ? void 0 : apiKeyMatch[1])) {
+          throw new TranscriptNotFoundError("Could not extract YouTube API key");
         }
-        const splittedHTML = videoPageBody.split('"captions":');
-        if (splittedHTML.length <= 1) {
-          throw new TranscriptNotFoundError(
-            "Transcript is disabled on this video"
-          );
-        }
-        let captions;
-        try {
-          const captionsJson = splittedHTML[1].split(',"videoDetails')[0].replace("\n", "");
-          captions = (_a2 = JSON.parse(captionsJson)) == null ? void 0 : _a2.playerCaptionsTracklistRenderer;
-        } catch (e) {
-          throw new TranscriptNotFoundError("Failed to parse captions data");
-        }
-        if (!((_b = captions == null ? void 0 : captions.captionTracks) == null ? void 0 : _b.length)) {
+        const innertubeResponse = await (0, import_obsidian2.requestUrl)({
+          url: `https://www.youtube.com/youtubei/v1/player?key=${apiKeyMatch[1]}`,
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "User-Agent": USER_AGENT,
+            "Accept": "application/json"
+          },
+          body: JSON.stringify({
+            context: {
+              client: {
+                clientName: "WEB",
+                clientVersion: "2.20231219.00.00",
+                hl: "en",
+                gl: "US"
+              }
+            },
+            videoId
+          })
+        });
+        const videoData = innertubeResponse.json;
+        const videoDetails = videoData == null ? void 0 : videoData.videoDetails;
+        const metadata = {
+          title: (videoDetails == null ? void 0 : videoDetails.title) || "Unknown",
+          author: (videoDetails == null ? void 0 : videoDetails.author) || "Unknown",
+          duration: (videoDetails == null ? void 0 : videoDetails.lengthSeconds) ? parseInt(videoDetails.lengthSeconds, 10) : void 0
+        };
+        const captionTracks = (_b = (_a2 = videoData == null ? void 0 : videoData.captions) == null ? void 0 : _a2.playerCaptionsTracklistRenderer) == null ? void 0 : _b.captionTracks;
+        if (!(captionTracks == null ? void 0 : captionTracks.length)) {
           throw new TranscriptNotFoundError("No transcript available for this video");
         }
-        const captionTrack = this.findBestCaptionTrack(captions.captionTracks, languages);
+        const captionTrack = this.findBestCaptionTrack(captionTracks, languages);
         if (!captionTrack) {
-          const availableLangs = captions.captionTracks.map((t) => t.languageCode).join(", ");
+          const availableLangs = captionTracks.map((t) => t.languageCode).join(", ");
           throw new TranscriptNotFoundError(
-            `No transcript available in ${languages.join("/")}. Available: ${availableLangs}`
+            `No transcript in ${languages.join("/")}. Available: ${availableLangs}`
           );
         }
         console.log(`Found transcript in language: ${captionTrack.languageCode}`);
@@ -229,19 +242,17 @@ var TranscriptDownloader = class {
           url: captionTrack.baseUrl,
           headers: { "User-Agent": USER_AGENT }
         });
-        if (transcriptResponse.status !== 200) {
-          throw new TranscriptNotFoundError("Failed to download transcript");
+        const transcriptXml = transcriptResponse.text;
+        if (!(transcriptXml == null ? void 0 : transcriptXml.trim())) {
+          throw new TranscriptNotFoundError("Transcript response is empty");
         }
-        const segments = this.parseTranscriptXML(transcriptResponse.text);
+        const segments = this.parseTranscriptXML(transcriptXml);
         if (segments.length === 0) {
-          throw new TranscriptNotFoundError("Transcript is empty");
+          throw new TranscriptNotFoundError("Could not parse transcript");
         }
         const fullText = segments.map((s) => this.decodeHTMLEntities(s.text)).join(" ").replace(/\s+/g, " ").trim();
         console.log(`Transcript downloaded: ${fullText.length} characters`);
-        return {
-          text: fullText,
-          metadata: this.extractMetadataFromPage(videoPageBody)
-        };
+        return { text: fullText, metadata };
       } catch (error) {
         lastError = error;
         console.error(`Attempt ${attempt + 1} failed:`, error.message);
@@ -257,7 +268,7 @@ var TranscriptDownloader = class {
       }
     }
     throw new TranscriptNotFoundError(
-      `Failed to download transcript after ${this.maxRetries} attempts: ${(lastError == null ? void 0 : lastError.message) || "Unknown error"}`
+      `Failed after ${this.maxRetries} attempts: ${(lastError == null ? void 0 : lastError.message) || "Unknown error"}`
     );
   }
   findBestCaptionTrack(tracks, preferredLanguages) {
@@ -296,11 +307,7 @@ var TranscriptDownloader = class {
       "&gt;": ">",
       "&quot;": '"',
       "&#39;": "'",
-      "&apos;": "'",
-      "&#x27;": "'",
-      "&#x2F;": "/",
-      "&#32;": " ",
-      "&nbsp;": " "
+      "&apos;": "'"
     };
     let decoded = text;
     for (const [entity, char] of Object.entries(entities)) {
@@ -316,26 +323,8 @@ var TranscriptDownloader = class {
     );
     return decoded;
   }
-  extractMetadataFromPage(html) {
-    const titleMatch = html.match(/<title>(.*?)<\/title>/);
-    const title = titleMatch ? titleMatch[1].replace(" - YouTube", "").trim() : "Unknown";
-    const authorMatch = html.match(/"author":"([^"]+)"/);
-    const author = authorMatch ? authorMatch[1] : "Unknown";
-    const dateMatch = html.match(/"publishDate":"([^"]+)"/);
-    const publishDate = dateMatch ? dateMatch[1] : void 0;
-    const durationMatch = html.match(/"lengthSeconds":"(\d+)"/);
-    const duration = durationMatch ? parseInt(durationMatch[1], 10) : void 0;
-    return { title, author, publishDate, duration };
-  }
   async downloadWithMetadata(videoId, languages = ["ko", "en"]) {
     return this.download(videoId, languages);
-  }
-  static extractVideoId(url) {
-    if (url.length === 11 && /^[a-zA-Z0-9_-]+$/.test(url)) {
-      return url;
-    }
-    const match = url.match(RE_YOUTUBE);
-    return match ? match[1] : null;
   }
 };
 

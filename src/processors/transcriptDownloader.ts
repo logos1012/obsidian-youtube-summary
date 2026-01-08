@@ -1,5 +1,5 @@
 /**
- * Based on: https://github.com/glowingjade/obsidian-smart-composer
+ * Based on: https://github.com/ljantzen/obsidian-youtube-transcript
  * License: MIT
  */
 
@@ -8,11 +8,8 @@ import { TranscriptResult, VideoMetadata } from '../types';
 import { TranscriptNotFoundError } from '../utils/errors';
 import { sleep } from '../utils/helpers';
 
-const RE_YOUTUBE =
-	/(?:youtube\.com\/(?:[^/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?/\s]{11})/i;
-
 const USER_AGENT =
-	'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/85.0.4183.83 Safari/537.36,gzip(gfe)';
+	'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
 const RE_XML_TRANSCRIPT = /<text start="([^"]*)" dur="([^"]*)">([^<]*)<\/text>/g;
 
@@ -46,52 +43,69 @@ export class TranscriptDownloader {
 			try {
 				console.log(`Downloading transcript for ${videoId} (attempt ${attempt + 1}/${this.maxRetries})`);
 
-				const videoPageResponse = await requestUrl({
+				const watchPageResponse = await requestUrl({
 					url: `https://www.youtube.com/watch?v=${videoId}`,
 					headers: {
 						'User-Agent': USER_AGENT,
-						'Accept-Language': languages.join(','),
+						'Accept-Language': 'en-US,en;q=0.9',
 					},
 				});
 
-				const videoPageBody = videoPageResponse.text;
+				const pageHtml = watchPageResponse.text;
 
-				if (videoPageBody.includes('class="g-recaptcha"')) {
+				if (pageHtml.includes('class="g-recaptcha"')) {
 					throw new TranscriptNotFoundError(
 						'YouTube is receiving too many requests. Please try again later.'
 					);
 				}
 
-				if (!videoPageBody.includes('"playabilityStatus":')) {
-					throw new TranscriptNotFoundError(
-						'Video is unavailable or has been deleted'
-					);
+				const apiKeyMatch = pageHtml.match(/"INNERTUBE_API_KEY":\s*"([a-zA-Z0-9_-]+)"/);
+				if (!apiKeyMatch?.[1]) {
+					throw new TranscriptNotFoundError('Could not extract YouTube API key');
 				}
 
-				const splittedHTML = videoPageBody.split('"captions":');
-				if (splittedHTML.length <= 1) {
-					throw new TranscriptNotFoundError(
-						'Transcript is disabled on this video'
-					);
-				}
+				const innertubeResponse = await requestUrl({
+					url: `https://www.youtube.com/youtubei/v1/player?key=${apiKeyMatch[1]}`,
+					method: 'POST',
+					headers: {
+						'Content-Type': 'application/json',
+						'User-Agent': USER_AGENT,
+						'Accept': 'application/json',
+					},
+					body: JSON.stringify({
+						context: {
+							client: {
+								clientName: 'WEB',
+								clientVersion: '2.20231219.00.00',
+								hl: 'en',
+								gl: 'US',
+							},
+						},
+						videoId: videoId,
+					}),
+				});
 
-				let captions: { captionTracks?: CaptionTrack[] } | undefined;
-				try {
-					const captionsJson = splittedHTML[1].split(',"videoDetails')[0].replace('\n', '');
-					captions = JSON.parse(captionsJson)?.playerCaptionsTracklistRenderer;
-				} catch (e) {
-					throw new TranscriptNotFoundError('Failed to parse captions data');
-				}
+				const videoData = innertubeResponse.json;
 
-				if (!captions?.captionTracks?.length) {
+				const videoDetails = videoData?.videoDetails;
+				const metadata: VideoMetadata = {
+					title: videoDetails?.title || 'Unknown',
+					author: videoDetails?.author || 'Unknown',
+					duration: videoDetails?.lengthSeconds ? parseInt(videoDetails.lengthSeconds, 10) : undefined,
+				};
+
+				const captionTracks: CaptionTrack[] = 
+					videoData?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
+
+				if (!captionTracks?.length) {
 					throw new TranscriptNotFoundError('No transcript available for this video');
 				}
 
-				const captionTrack = this.findBestCaptionTrack(captions.captionTracks, languages);
+				const captionTrack = this.findBestCaptionTrack(captionTracks, languages);
 				if (!captionTrack) {
-					const availableLangs = captions.captionTracks.map(t => t.languageCode).join(', ');
+					const availableLangs = captionTracks.map(t => t.languageCode).join(', ');
 					throw new TranscriptNotFoundError(
-						`No transcript available in ${languages.join('/')}. Available: ${availableLangs}`
+						`No transcript in ${languages.join('/')}. Available: ${availableLangs}`
 					);
 				}
 
@@ -102,14 +116,14 @@ export class TranscriptDownloader {
 					headers: { 'User-Agent': USER_AGENT },
 				});
 
-				if (transcriptResponse.status !== 200) {
-					throw new TranscriptNotFoundError('Failed to download transcript');
+				const transcriptXml = transcriptResponse.text;
+				if (!transcriptXml?.trim()) {
+					throw new TranscriptNotFoundError('Transcript response is empty');
 				}
 
-				const segments = this.parseTranscriptXML(transcriptResponse.text);
-
+				const segments = this.parseTranscriptXML(transcriptXml);
 				if (segments.length === 0) {
-					throw new TranscriptNotFoundError('Transcript is empty');
+					throw new TranscriptNotFoundError('Could not parse transcript');
 				}
 
 				const fullText = segments
@@ -120,10 +134,7 @@ export class TranscriptDownloader {
 
 				console.log(`Transcript downloaded: ${fullText.length} characters`);
 
-				return {
-					text: fullText,
-					metadata: this.extractMetadataFromPage(videoPageBody)
-				};
+				return { text: fullText, metadata };
 
 			} catch (error) {
 				lastError = error as Error;
@@ -144,7 +155,7 @@ export class TranscriptDownloader {
 		}
 
 		throw new TranscriptNotFoundError(
-			`Failed to download transcript after ${this.maxRetries} attempts: ${lastError?.message || 'Unknown error'}`
+			`Failed after ${this.maxRetries} attempts: ${lastError?.message || 'Unknown error'}`
 		);
 	}
 
@@ -193,10 +204,6 @@ export class TranscriptDownloader {
 			'&quot;': '"',
 			'&#39;': "'",
 			'&apos;': "'",
-			'&#x27;': "'",
-			'&#x2F;': '/',
-			'&#32;': ' ',
-			'&nbsp;': ' ',
 		};
 
 		let decoded = text;
@@ -214,37 +221,10 @@ export class TranscriptDownloader {
 		return decoded;
 	}
 
-	private extractMetadataFromPage(html: string): VideoMetadata {
-		const titleMatch = html.match(/<title>(.*?)<\/title>/);
-		const title = titleMatch
-			? titleMatch[1].replace(' - YouTube', '').trim()
-			: 'Unknown';
-
-		const authorMatch = html.match(/"author":"([^"]+)"/);
-		const author = authorMatch ? authorMatch[1] : 'Unknown';
-
-		const dateMatch = html.match(/"publishDate":"([^"]+)"/);
-		const publishDate = dateMatch ? dateMatch[1] : undefined;
-
-		const durationMatch = html.match(/"lengthSeconds":"(\d+)"/);
-		const duration = durationMatch ? parseInt(durationMatch[1], 10) : undefined;
-
-		return { title, author, publishDate, duration };
-	}
-
 	async downloadWithMetadata(
 		videoId: string,
 		languages: string[] = ['ko', 'en']
 	): Promise<TranscriptResult> {
 		return this.download(videoId, languages);
-	}
-
-	static extractVideoId(url: string): string | null {
-		if (url.length === 11 && /^[a-zA-Z0-9_-]+$/.test(url)) {
-			return url;
-		}
-
-		const match = url.match(RE_YOUTUBE);
-		return match ? match[1] : null;
 	}
 }
