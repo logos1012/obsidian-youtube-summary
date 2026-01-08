@@ -17,6 +17,8 @@ export interface ProcessedSections {
 	detailedNotes: string;
 	actionItems: string;
 	feynmanExplanation: string;
+	category: string;
+	topicsKr: string;
 }
 
 export interface YouTubeSummarySettings {

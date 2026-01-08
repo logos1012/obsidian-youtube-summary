@@ -90,6 +90,14 @@ Generate these sections:
    Connect all key concepts naturally. Cover the ENTIRE video content.
    This will be used for InfraNodus knowledge graph analysis.
 
+7. CATEGORY (category)
+   Determine the category of this video. Return ONLY ONE of these exact values:
+   AI/ML, Tech, Business, Education, Cosmetics, Marketing, or Other
+
+8. TOPICS (topicsKr)
+   Extract 3-5 core topics from this video in Korean.
+   Return as comma-separated values (e.g., "주제1, 주제2, 주제3")
+
 Return ONLY a valid JSON object in this exact format:
 {
   "executiveSummary": "your content here",
@@ -97,7 +105,9 @@ Return ONLY a valid JSON object in this exact format:
   "keyConcepts": "your content here",
   "detailedNotes": "your content here",
   "actionItems": "your content here",
-  "feynmanExplanation": "your content here"
+  "feynmanExplanation": "your content here",
+  "category": "one of: AI/ML, Tech, Business, Education, Cosmetics, Marketing, Other",
+  "topicsKr": "주제1, 주제2, 주제3"
 }`;
 	}
 
@@ -127,7 +137,9 @@ Return ONLY a valid JSON object in this exact format:
 				'keyConcepts',
 				'detailedNotes',
 				'actionItems',
-				'feynmanExplanation'
+				'feynmanExplanation',
+				'category',
+				'topicsKr'
 			];
 
 			for (const field of required) {

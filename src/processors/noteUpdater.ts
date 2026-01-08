@@ -89,45 +89,59 @@ export class NoteUpdater {
 	updateFlexible(currentContent: string, sections: ProcessedSections): string {
 		let updatedContent = currentContent;
 
-		// For each section, try to find and replace the corresponding template
-		const replacements: Array<{ pattern: RegExp, content: string }> = [
+		const bodyReplacements: Array<{ pattern: RegExp, content: string }> = [
 			{
-				// Executive Summary
 				pattern: /\{\{[^}]*Executive Summary[^}]*\}\}/g,
 				content: this.formatCallout('summary', 'Executive Summary', sections.executiveSummary)
 			},
 			{
-				// Chapter Analysis (챕터별 분석)
 				pattern: /\{\{[^}]*챕터별 분석[^}]*\}\}/g,
 				content: this.formatCallout('note', '챕터별 분석', sections.chapterAnalysis)
 			},
 			{
-				// Key Concepts (핵심 개념)
 				pattern: /\{\{[^}]*핵심 개념[^}]*\}\}/g,
 				content: this.formatCallout('info', '핵심 개념', sections.keyConcepts)
 			},
 			{
-				// Detailed Notes (상세 학습 노트)
 				pattern: /\{\{[^}]*상세 학습 노트[^}]*\}\}/g,
 				content: this.formatCallout('note', '상세 학습 노트', sections.detailedNotes)
 			},
 			{
-				// Action Items (실행 아이템)
 				pattern: /\{\{[^}]*실행 아이템[^}]*\}\}/g,
 				content: this.formatCallout('tip', '실행 아이템', sections.actionItems)
 			},
 			{
-				// Feynman Explanation (쉬운 설명)
 				pattern: /\{\{[^}]*쉬운 설명[^}]*\}\}/g,
 				content: this.formatCallout('tip', '쉬운 설명', sections.feynmanExplanation)
 			}
 		];
 
-		for (const { pattern, content } of replacements) {
+		for (const { pattern, content } of bodyReplacements) {
 			updatedContent = updatedContent.replace(pattern, content);
 		}
 
+		updatedContent = this.updateFrontmatter(updatedContent, sections);
+
 		return updatedContent;
+	}
+
+	private updateFrontmatter(content: string, sections: ProcessedSections): string {
+		const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---/);
+		if (!frontmatterMatch) return content;
+
+		let frontmatter = frontmatterMatch[1];
+
+		frontmatter = frontmatter.replace(
+			/^(category:\s*).*$/m,
+			`$1"${sections.category}"`
+		);
+
+		frontmatter = frontmatter.replace(
+			/^(topics_kr:\s*).*$/m,
+			`$1"${sections.topicsKr}"`
+		);
+
+		return content.replace(/^---\n[\s\S]*?\n---/, `---\n${frontmatter}\n---`);
 	}
 
 	/**
