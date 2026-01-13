@@ -34,7 +34,7 @@ export class AIProcessor {
 	}
 
 	/**
-	 * Build the comprehensive prompt for all 7 sections
+	 * Build the comprehensive prompt for selected sections (1, 2, 3, 8 only)
 	 */
 	private buildPrompt(transcript: string, metadata: VideoMetadata): string {
 		return `You are processing a YouTube video transcript to create comprehensive learning notes in Korean.
@@ -47,7 +47,7 @@ ${metadata.publishDate ? `- Published: ${metadata.publishDate}` : ''}
 TRANSCRIPT:
 ${transcript}
 
-Please generate the following 6 sections based on the transcript. Your response MUST be a valid JSON object with the exact field names below.
+Please generate the following 4 sections based on the transcript. Your response MUST be a valid JSON object with the exact field names below.
 
 IMPORTANT INSTRUCTIONS:
 - All content must be in Korean (한국어)
@@ -78,33 +78,7 @@ Generate these sections:
    Then explain any frameworks or models mentioned.
    Finally describe how concepts relate to each other.
 
-4. DETAILED NOTES (detailedNotes)
-   Create exhaustive learning notes in Korean covering:
-   1) Background context and why this matters
-   2) All main arguments with supporting evidence
-   3) Step-by-step methods or processes explained
-   4) Data and statistics mentioned
-   5) Limitations acknowledged
-   Be comprehensive enough to understand without watching.
-
-5. ACTION ITEMS (actionItems)
-   Extract actionable insights in Korean:
-   1) Immediate actions as checkbox list
-   2) Long-term application areas
-   3) Books or resources mentioned
-   4) Questions for further exploration
-
-6. FEYNMAN EXPLANATION (feynmanExplanation)
-   Using Feynman Technique, explain ALL main concepts from this video in Korean.
-   Write comprehensively. Use simple analogies and everyday examples.
-   Connect all key concepts naturally. Cover the ENTIRE video content.
-   This will be used for InfraNodus knowledge graph analysis.
-
-7. CATEGORY (category)
-   Determine the category of this video. Return ONLY ONE of these exact values:
-   AI/ML, Tech, Business, Education, Cosmetics, Marketing, or Other
-
-8. TOPICS (topicsKr)
+4. TOPICS (topicsKr)
    Extract 3-5 core topics from this video in Korean.
    Return as comma-separated values (e.g., "주제1, 주제2, 주제3")
 
@@ -113,10 +87,6 @@ Return ONLY a valid JSON object in this exact format:
   "executiveSummary": "your content here",
   "chapterAnalysis": "your content here",
   "keyConcepts": "your content here",
-  "detailedNotes": "your content here",
-  "actionItems": "your content here",
-  "feynmanExplanation": "your content here",
-  "category": "one of: AI/ML, Tech, Business, Education, Cosmetics, Marketing, Other",
   "topicsKr": "주제1, 주제2, 주제3"
 }`;
 	}
@@ -145,10 +115,6 @@ Return ONLY a valid JSON object in this exact format:
 				'executiveSummary',
 				'chapterAnalysis',
 				'keyConcepts',
-				'detailedNotes',
-				'actionItems',
-				'feynmanExplanation',
-				'category',
 				'topicsKr'
 			];
 

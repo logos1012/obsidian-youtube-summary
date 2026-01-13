@@ -54,38 +54,20 @@ ${this.formatCallout('info', '핵심 개념', sections.keyConcepts)}
 
 ---
 
-## 4. Detailed Notes
-
-${this.formatCallout('note', '상세 학습 노트', sections.detailedNotes)}
-
----
-
-## 5. Action Items
-
-${this.formatCallout('tip', '실행 아이템', sections.actionItems)}
-
----
-
-## 6. Feynman Explanation
-
-${this.formatCallout('tip', '쉬운 설명', sections.feynmanExplanation)}
-
----
-
-## 7. My Notes
+## 4. My Notes
 
 ### Related Knowledge
-- 
+-
 
 ### Ideas
-- 
+-
 
 ### Personal Memo
-- 
+-
 
 ---
 
-## 8. 본문 (Transcript)
+## 5. 본문 (Transcript)
 
 ${this.formatTranscript(segments, videoId)}
 `;
@@ -154,15 +136,7 @@ ${this.formatTranscript(segments, videoId)}
 
 		let frontmatter = frontmatterMatch[1];
 
-		// Check if category is empty or has empty value (handles both single value and array format)
-		// Pattern matches: "category:" or "category: """" followed by optional array items (  - "value")
-		const categoryEmptyPattern = /^category:\s*""?\s*$(\n\s+-\s*"[^"]*"\s*$)*/m;
-		const categoryEmptyMatch = frontmatter.match(categoryEmptyPattern);
-		if (categoryEmptyMatch) {
-			frontmatter = frontmatter.replace(categoryEmptyPattern, `category: "${sections.category}"`);
-		}
-
-		// Same pattern for topics_kr
+		// Update topics_kr if empty
 		const topicsEmptyPattern = /^topics_kr:\s*""?\s*$(\n\s+-\s*"[^"]*"\s*$)*/m;
 		const topicsEmptyMatch = frontmatter.match(topicsEmptyPattern);
 		if (topicsEmptyMatch) {

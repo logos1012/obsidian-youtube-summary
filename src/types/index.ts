@@ -21,10 +21,10 @@ export interface ProcessedSections {
 	executiveSummary: string;
 	chapterAnalysis: string;
 	keyConcepts: string;
-	detailedNotes: string;
-	actionItems: string;
-	feynmanExplanation: string;
-	category: string;
+	detailedNotes?: string;  // Optional - not generated anymore
+	actionItems?: string;  // Optional - not generated anymore
+	feynmanExplanation?: string;  // Optional - not generated anymore
+	category?: string;  // Optional - not generated anymore
 	topicsKr: string;
 }
 
