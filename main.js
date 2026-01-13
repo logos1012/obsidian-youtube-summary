@@ -3260,20 +3260,7 @@ ${this.formatCallout("info", "\uD575\uC2EC \uAC1C\uB150", sections.keyConcepts)}
 
 ---
 
-## 4. My Notes
-
-### Related Knowledge
--
-
-### Ideas
--
-
-### Personal Memo
--
-
----
-
-## 5. \uBCF8\uBB38 (Transcript)
+## 4. \uBCF8\uBB38 (Transcript)
 
 ${this.formatTranscript(segments, videoId)}
 `;

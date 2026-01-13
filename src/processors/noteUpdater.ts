@@ -54,20 +54,7 @@ ${this.formatCallout('info', '핵심 개념', sections.keyConcepts)}
 
 ---
 
-## 4. My Notes
-
-### Related Knowledge
--
-
-### Ideas
--
-
-### Personal Memo
--
-
----
-
-## 5. 본문 (Transcript)
+## 4. 본문 (Transcript)
 
 ${this.formatTranscript(segments, videoId)}
 `;
